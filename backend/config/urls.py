@@ -10,8 +10,11 @@ Routes:
 from django.contrib import admin
 from django.urls import path, include
 from django.http import JsonResponse
+from django.shortcuts import render
+from django.conf import settings
 from django.db import connection
 from django.core.cache import cache
+from django.views.generic import TemplateView
 
 
 def health_check(request):
@@ -51,7 +54,21 @@ def health_check(request):
     )
 
 
+def test_playground(request):
+    """
+    Renders the interactive test client playground with settings context.
+    """
+    return render(
+        request,
+        'test_client.html',
+        {
+            'google_client_id': getattr(settings, 'GOOGLE_CLIENT_ID', ''),
+        }
+    )
+
+
 urlpatterns = [
+    path('', test_playground, name='test-playground'),
     path('admin/', admin.site.urls),
     path('health/', health_check, name='health-check'),
     path('api/v1/auth/', include('apps.accounts.urls', namespace='auth')),

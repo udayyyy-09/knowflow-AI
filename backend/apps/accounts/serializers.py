@@ -136,19 +136,27 @@ class UserLoginSerializer(serializers.Serializer):
 
 class GoogleAuthSerializer(serializers.Serializer):
     """
-    Serializer for handling Google OAuth Sign-In via ID token.
+    Serializer for handling Google OAuth Sign-In via ID token or Google credential.
     """
     id_token = serializers.CharField(
-        required=True,
+        required=False,
         write_only=True,
         help_text="The JWT ID token obtained from Google Identity Services on the frontend."
+    )
+    credential = serializers.CharField(
+        required=False,
+        write_only=True,
+        help_text="The credential string returned by Google Identity Services."
     )
     tokens = serializers.SerializerMethodField(read_only=True)
     user = serializers.SerializerMethodField(read_only=True)
     is_new_user = serializers.BooleanField(read_only=True)
 
     def validate(self, attrs):
-        token_str = attrs.get('id_token')
+        token_str = attrs.get('id_token') or attrs.get('credential')
+        if not token_str:
+            raise serializers.ValidationError("Either 'id_token' or 'credential' must be provided.")
+
         payload = verify_google_id_token(token_str)
         user, created = authenticate_or_register_google_user(payload)
 

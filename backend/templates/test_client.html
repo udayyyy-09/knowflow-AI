@@ -1,0 +1,1315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KnowFlow AI — API Testing Console</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Google Identity Services for Google Auth Testing -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <style>
+        :root {
+            --bg-base: #090d16;
+            --bg-surface: rgba(17, 24, 39, 0.75);
+            --bg-card: rgba(31, 41, 55, 0.6);
+            --bg-card-hover: rgba(55, 65, 81, 0.6);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --border-active: rgba(99, 102, 241, 0.5);
+            --text-primary: #f9fafb;
+            --text-secondary: #9ca3af;
+            --text-muted: #6b7280;
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --primary-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #d946ef 100%);
+            --accent-cyan: #06b6d4;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+            --font-heading: 'Outfit', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+            --radius-md: 10px;
+            --radius-lg: 16px;
+            --shadow-lg: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-base);
+            color: var(--text-primary);
+            font-family: var(--font-sans);
+            line-height: 1.5;
+            min-height: 100vh;
+            background-image: 
+                radial-gradient(circle at 15% 15%, rgba(99, 102, 241, 0.15) 0%, transparent 40%),
+                radial-gradient(circle at 85% 85%, rgba(6, 182, 212, 0.12) 0%, transparent 40%);
+            background-attachment: fixed;
+        }
+
+        /* Top Header */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 2rem;
+            background: var(--bg-surface);
+            backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            z-index: 50;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .brand-logo {
+            width: 36px;
+            height: 36px;
+            background: var(--primary-gradient);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-family: var(--font-heading);
+            font-size: 1.25rem;
+            color: #fff;
+            box-shadow: 0 0 15px rgba(99, 102, 241, 0.4);
+        }
+
+        .brand-title {
+            font-family: var(--font-heading);
+            font-size: 1.25rem;
+            font-weight: 700;
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .brand-subtitle {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-left: 0.5rem;
+            padding: 2px 6px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .health-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.8rem;
+            padding: 4px 10px;
+            border-radius: 20px;
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+            border: 1px solid rgba(16, 185, 129, 0.25);
+        }
+
+        .health-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--success);
+            box-shadow: 0 0 8px var(--success);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(0.9); }
+        }
+
+        .user-status-pill {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid var(--border-color);
+            font-size: 0.85rem;
+        }
+
+        /* Container Layout */
+        .app-container {
+            max-width: 1400px;
+            margin: 2rem auto;
+            padding: 0 1.5rem;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+
+        @media (max-width: 1024px) {
+            .app-container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Glassmorphism Cards */
+        .glass-card {
+            background: var(--bg-surface);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 1.5rem;
+            box-shadow: var(--shadow-lg);
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.75rem;
+        }
+
+        .card-title {
+            font-family: var(--font-heading);
+            font-size: 1.15rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Tabs Navigation */
+        .tab-nav {
+            display: flex;
+            background: rgba(0, 0, 0, 0.25);
+            padding: 4px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border-color);
+            gap: 4px;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 8px 12px;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            font-weight: 500;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .tab-btn:hover {
+            color: var(--text-primary);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .tab-btn.active {
+            background: var(--primary);
+            color: #fff;
+            box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+        }
+
+        .tab-pane {
+            display: none;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .tab-pane.active {
+            display: flex;
+        }
+
+        /* Forms & Inputs */
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        label {
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        input, select, textarea {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 10px 14px;
+            color: var(--text-primary);
+            font-family: var(--font-sans);
+            font-size: 0.9rem;
+            transition: all 0.2s ease;
+            outline: none;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+            background: rgba(0, 0, 0, 0.45);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 10px 16px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            border-radius: var(--radius-md);
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            color: #fff;
+        }
+
+        .btn-primary {
+            background: var(--primary-gradient);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.12);
+        }
+
+        .btn-danger {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--danger);
+            border: 1px solid rgba(239, 68, 68, 0.4);
+        }
+
+        .btn-danger:hover {
+            background: var(--danger);
+            color: #fff;
+        }
+
+        .btn-sm {
+            padding: 6px 10px;
+            font-size: 0.8rem;
+        }
+
+        .quick-fill {
+            font-size: 0.75rem;
+            color: var(--accent-cyan);
+            cursor: pointer;
+            text-decoration: underline;
+            margin-top: 4px;
+        }
+
+        /* Live Inspector (Right Column) */
+        .inspector-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .status-pill {
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            font-family: var(--font-mono);
+        }
+
+        .status-2xx {
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--success);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .status-4xx, .status-5xx {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--danger);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .code-viewer {
+            background: #030712;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 1rem;
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: #e5e7eb;
+            overflow-x: auto;
+            max-height: 450px;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .token-box {
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 8px 12px;
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--accent-cyan);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        /* Workspace Grid & Cards */
+        .workspace-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 0.75rem;
+            max-height: 280px;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+
+        .workspace-item {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .workspace-item:hover, .workspace-item.selected {
+            border-color: var(--border-active);
+            background: var(--bg-card-hover);
+        }
+
+        .role-badge {
+            font-size: 0.7rem;
+            font-weight: 600;
+            padding: 2px 6px;
+            border-radius: 4px;
+            text-transform: uppercase;
+        }
+
+        .role-ADMIN {
+            background: rgba(217, 70, 239, 0.2);
+            color: #f0abfc;
+            border: 1px solid rgba(217, 70, 239, 0.4);
+        }
+
+        .role-MANAGER {
+            background: rgba(6, 182, 212, 0.2);
+            color: #67e8f9;
+            border: 1px solid rgba(6, 182, 212, 0.4);
+        }
+
+        .role-EMPLOYEE {
+            background: rgba(156, 163, 175, 0.2);
+            color: #d1d5db;
+            border: 1px solid rgba(156, 163, 175, 0.3);
+        }
+
+        .members-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+            margin-top: 8px;
+        }
+
+        .members-table th, .members-table td {
+            padding: 8px 10px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .members-table th {
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        /* Notice banner */
+        .notice-box {
+            padding: 10px 14px;
+            border-radius: var(--radius-md);
+            background: rgba(99, 102, 241, 0.1);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            font-size: 0.85rem;
+            color: #c7d2fe;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <header>
+        <div class="brand">
+            <div class="brand-logo">K</div>
+            <div>
+                <span class="brand-title">KnowFlow AI</span>
+                <span class="brand-subtitle">API Playground</span>
+            </div>
+        </div>
+
+        <div class="header-actions">
+            <div id="healthBadge" class="health-badge">
+                <span class="health-dot"></span>
+                <span id="healthText">Checking backend...</span>
+            </div>
+
+            <div id="userPill" class="user-status-pill">
+                <span id="userStatusText">Not Authenticated</span>
+                <button id="logoutBtn" class="btn btn-sm btn-danger" style="display: none;" onclick="handleLogout()">Sign Out</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="app-container">
+
+        <!-- Left Column: Operations -->
+        <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+
+            <!-- Auth Box -->
+            <div class="glass-card">
+                <div class="card-header">
+                    <h2 class="card-title">🔐 Authentication & Identity</h2>
+                    <span id="authModeLabel" style="font-size: 0.8rem; color: var(--text-muted);">Step 1: Get JWT Token</span>
+                </div>
+
+                <!-- Auth Tabs -->
+                <div class="tab-nav">
+                    <button class="tab-btn active" onclick="switchAuthTab('loginTab', this)">Sign In</button>
+                    <button class="tab-btn" onclick="switchAuthTab('registerTab', this)">Register</button>
+                    <button class="tab-btn" onclick="switchAuthTab('googleTab', this)">Google OAuth</button>
+                </div>
+
+                <!-- Sign In Pane -->
+                <div id="loginTab" class="tab-pane active">
+                    <div class="form-group">
+                        <label>Email Address</label>
+                        <input type="email" id="loginEmail" placeholder="udaychaudhary419@gmail.com" value="udaychaudhary419@gmail.com">
+                        <span class="quick-fill" onclick="document.getElementById('loginEmail').value='udaychaudhary419@gmail.com'">Fill Superuser Email</span>
+                    </div>
+                    <div class="form-group">
+                        <label>Password</label>
+                        <input type="password" id="loginPassword" placeholder="Enter your password">
+                    </div>
+                    <button class="btn btn-primary" onclick="handleLogin()">
+                        <span>Sign In (POST /api/v1/auth/login/)</span>
+                    </button>
+                </div>
+
+                <!-- Register Pane -->
+                <div id="registerTab" class="tab-pane">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>First Name</label>
+                            <input type="text" id="regFirstName" placeholder="Uday">
+                        </div>
+                        <div class="form-group">
+                            <label>Last Name</label>
+                            <input type="text" id="regLastName" placeholder="Chaudhary">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Email Address</label>
+                        <input type="email" id="regEmail" placeholder="employee@knowflow.ai">
+                    </div>
+                    <div class="form-group">
+                        <label>Password (min 8 chars)</label>
+                        <input type="password" id="regPassword" placeholder="SecurePassword123!">
+                    </div>
+                    <button class="btn btn-primary" onclick="handleRegister()">
+                        <span>Create Account (POST /api/v1/auth/register/)</span>
+                    </button>
+                </div>
+
+                <!-- Google OAuth Pane -->
+                <div id="googleTab" class="tab-pane">
+                    <div class="notice-box">
+                        💡 <strong>Google OAuth in DRF:</strong> The client receives an <code>id_token</code> from Google Identity Services and submits it to <code>/api/v1/auth/google/</code>. The backend verifies the token and generates SimpleJWT tokens.
+                    </div>
+
+                    <div class="form-group" style="margin-top: 6px;">
+                        <label>Google OAuth Client ID</label>
+                        <input type="text" id="googleClientIdInput" value="{{ google_client_id }}" placeholder="your-client-id.apps.googleusercontent.com" oninput="initGoogleSignIn()">
+                    </div>
+
+                    <!-- Programmatic Google Sign-In Button Container -->
+                    <div id="googleBtnContainer" style="margin: 14px 0; min-height: 44px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;"></div>
+                    
+                    <button class="btn btn-secondary" onclick="launchGoogleOAuthDirect()" style="margin-bottom: 12px; width: 100%; border-color: rgba(99, 102, 241, 0.4);">
+                        <span>🚀 Launch Direct Google OAuth Popup</span>
+                    </button>
+
+                    <div class="form-group" style="margin-top: 10px;">
+                        <label>Or Submit Manual / Mock Google ID Token</label>
+                        <textarea id="manualIdToken" rows="3" placeholder="eyJhbGciOiJSUzI1NiIsImtpZCI6Ij..."></textarea>
+                    </div>
+
+                    <button class="btn btn-primary" onclick="handleGoogleSignInManual()">
+                        <span>Verify & Sign In with Google (POST /api/v1/auth/google/)</span>
+                    </button>
+                </div>
+
+                <!-- Token Actions -->
+                <div style="display: flex; gap: 8px; border-top: 1px solid var(--border-color); padding-top: 10px;">
+                    <button class="btn btn-secondary btn-sm" onclick="handleRefreshToken()">🔄 Refresh Token (/api/v1/auth/refresh/)</button>
+                    <button class="btn btn-secondary btn-sm" onclick="handleGetProfile()">👤 Get Me (/api/v1/auth/me/)</button>
+                </div>
+            </div>
+
+            <!-- Workspaces Box -->
+            <div class="glass-card">
+                <div class="card-header">
+                    <h2 class="card-title">🏢 Workspaces & RBAC</h2>
+                    <button class="btn btn-sm btn-secondary" onclick="fetchWorkspaces()">Refresh List</button>
+                </div>
+
+                <!-- Create Workspace -->
+                <div style="display: flex; flex-direction: column; gap: 8px; background: rgba(0,0,0,0.25); padding: 12px; border-radius: var(--radius-md);">
+                    <label>Create New Workspace (Creator becomes ADMIN)</label>
+                    <div class="form-row">
+                        <input type="text" id="wsName" placeholder="Workspace Name (e.g. Engineering)">
+                        <input type="text" id="wsDesc" placeholder="Description (optional)">
+                    </div>
+                    <button class="btn btn-primary btn-sm" onclick="handleCreateWorkspace()">
+                        ➕ Create Workspace (POST /api/v1/workspaces/)
+                    </button>
+                </div>
+
+                <!-- Workspaces Grid -->
+                <div class="form-group">
+                    <label>Your Workspaces (Click to inspect)</label>
+                    <div id="workspacesList" class="workspace-grid">
+                        <div style="color: var(--text-muted); font-size: 0.85rem; padding: 8px;">
+                            Sign in to load your authorized workspaces.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Selected Workspace Details & Member Management -->
+                <div id="workspaceDetailsPanel" style="display: none; border-top: 1px solid var(--border-color); padding-top: 12px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <h3 id="selectedWsTitle" style="font-size: 1rem; font-family: var(--font-heading);">Workspace Details</h3>
+                        <span id="selectedWsRoleBadge" class="role-badge"></span>
+                    </div>
+
+                    <!-- Add Member Form -->
+                    <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+                        <input type="email" id="inviteEmail" placeholder="colleague@knowflow.ai" style="flex: 2;">
+                        <select id="inviteRole" style="flex: 1;">
+                            <option value="EMPLOYEE">EMPLOYEE</option>
+                            <option value="MANAGER">MANAGER</option>
+                            <option value="ADMIN">ADMIN</option>
+                        </select>
+                        <button class="btn btn-sm btn-primary" onclick="handleAddMember()">Add Member</button>
+                    </div>
+
+                    <!-- Member Table -->
+                    <table class="members-table">
+                        <thead>
+                            <tr>
+                                <th>User</th>
+                                <th>Role</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="membersTableBody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Documents & Knowledge Base Card (Phase 2) -->
+            <div class="glass-card" id="documentsCard" style="display: none;">
+                <div class="card-header">
+                    <h2 class="card-title">📄 Documents & Knowledge Base</h2>
+                    <button class="btn btn-sm btn-secondary" onclick="fetchDocuments()">Refresh Documents</button>
+                </div>
+
+                <!-- Upload Document Form -->
+                <div style="background: rgba(0,0,0,0.25); padding: 12px; border-radius: var(--radius-md); margin-bottom: 14px; display: flex; flex-direction: column; gap: 8px;">
+                    <div style="font-weight: 600; font-size: 0.9rem; color: var(--accent-cyan);">Upload Document (.pdf, .docx, .txt, .md, .csv)</div>
+                    <div class="form-row">
+                        <input type="text" id="docTitle" placeholder="Document Title (optional, defaults to filename)">
+                        <input type="text" id="docDesc" placeholder="Description (optional)">
+                    </div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <input type="file" id="docFileInput" accept=".pdf,.docx,.txt,.md,.csv" style="flex: 2; padding: 6px; font-size: 0.85rem;">
+                        <button class="btn btn-primary btn-sm" onclick="handleUploadDocument()" style="flex: 1;">
+                            📤 Upload Document
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Document Library Table -->
+                <div class="form-group">
+                    <label>Workspace Document Library</label>
+                    <div style="overflow-x: auto;">
+                        <table class="members-table" style="font-size: 0.85rem;">
+                            <thead>
+                                <tr>
+                                    <th>Document Title</th>
+                                    <th>Type</th>
+                                    <th>Status</th>
+                                    <th>Version</th>
+                                    <th>Size</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="documentsTableBody">
+                                <tr>
+                                    <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 12px;">No documents uploaded yet in this workspace.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Right Column: Live API Inspector -->
+        <div class="inspector-container">
+
+            <div class="glass-card" style="height: 100%;">
+                <div class="card-header">
+                    <h2 class="card-title">📡 Live API Inspector & Response Log</h2>
+                    <div id="responseStatusBadge" class="status-pill" style="display: none;">STATUS</div>
+                </div>
+
+                <!-- Request metadata -->
+                <div style="display: flex; flex-direction: column; gap: 6px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-muted);">
+                        <span>LAST ENDPOINT: <strong id="reqMethod" style="color: var(--accent-cyan);">GET</strong> <span id="reqUrl">/health/</span></span>
+                        <span id="reqLatency">0ms</span>
+                    </div>
+                    <div class="token-box">
+                        <span id="tokenDisplay">Bearer Token: (Not authenticated)</span>
+                        <button class="btn btn-sm btn-secondary" style="padding: 2px 6px; font-size: 0.7rem;" onclick="copyToken()">Copy</button>
+                    </div>
+                </div>
+
+                <!-- JSON Response Code Viewer -->
+                <div class="form-group" style="flex: 1; display: flex; flex-direction: column;">
+                    <label>JSON Response Payload</label>
+                    <div id="jsonViewer" class="code-viewer" style="flex: 1;">{
+  "status": "waiting for requests..."
+}</div>
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <script>
+        // State Management
+        let tokens = {
+            access: localStorage.getItem('knowflow_access_token') || '',
+            refresh: localStorage.getItem('knowflow_refresh_token') || ''
+        };
+        let currentUser = null;
+        let selectedWorkspaceId = null;
+
+        // Initialize on load
+        window.addEventListener('DOMContentLoaded', () => {
+            checkHealth();
+            setInterval(checkHealth, 10000);
+            updateAuthDisplay();
+            setTimeout(initGoogleSignIn, 500);
+
+            // Detect URL hash token if direct OAuth redirect occurred
+            if (window.location.hash) {
+                const params = new URLSearchParams(window.location.hash.substring(1));
+                const idToken = params.get('id_token');
+                if (idToken) {
+                    window.history.replaceState(null, null, window.location.pathname);
+                    document.getElementById('manualIdToken').value = idToken;
+                    handleGoogleSignInManual();
+                }
+            }
+
+            if (tokens.access) {
+                handleGetProfile();
+                fetchWorkspaces();
+            }
+        });
+
+        // Tab Switching
+        function switchAuthTab(tabId, btn) {
+            document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            btn.classList.add('active');
+            if (tabId === 'googleTab') {
+                setTimeout(initGoogleSignIn, 50);
+            }
+        }
+
+        // Token Display
+        function updateAuthDisplay() {
+            const userPill = document.getElementById('userStatusText');
+            const logoutBtn = document.getElementById('logoutBtn');
+            const tokenDisplay = document.getElementById('tokenDisplay');
+
+            if (tokens.access) {
+                tokenDisplay.textContent = `Bearer ${tokens.access.slice(0, 24)}...${tokens.access.slice(-10)}`;
+                logoutBtn.style.display = 'inline-block';
+                if (currentUser) {
+                    userPill.textContent = `${currentUser.email} (${currentUser.first_name || 'User'})`;
+                } else {
+                    userPill.textContent = "Authenticated";
+                }
+            } else {
+                tokenDisplay.textContent = "Bearer Token: (Not authenticated)";
+                userPill.textContent = "Not Authenticated";
+                logoutBtn.style.display = 'none';
+            }
+        }
+
+        function copyToken() {
+            if (tokens.access) {
+                navigator.clipboard.writeText(tokens.access);
+                alert("Access Token copied to clipboard!");
+            }
+        }
+
+        // Generic API Fetcher with Inspector Logging
+        async function apiRequest(method, endpoint, body = null, requireAuth = true) {
+            const url = endpoint.startsWith('http') ? endpoint : endpoint;
+            const headers = { 'Content-Type': 'application/json' };
+            if (requireAuth && tokens.access) {
+                headers['Authorization'] = `Bearer ${tokens.access}`;
+            }
+
+            const startTime = performance.now();
+            document.getElementById('reqMethod').textContent = method;
+            document.getElementById('reqUrl').textContent = endpoint;
+
+            try {
+                const response = await fetch(url, {
+                    method,
+                    headers,
+                    body: body ? JSON.stringify(body) : null
+                });
+
+                const latency = Math.round(performance.now() - startTime);
+                document.getElementById('reqLatency').textContent = `${latency}ms`;
+
+                const data = await response.json();
+                renderResponseInspector(response.status, data);
+
+                return { status: response.status, data };
+            } catch (err) {
+                const latency = Math.round(performance.now() - startTime);
+                document.getElementById('reqLatency').textContent = `${latency}ms`;
+                renderResponseInspector(500, { error: err.message });
+                return { status: 500, data: { error: err.message } };
+            }
+        }
+
+        // Render Inspector
+        function renderResponseInspector(status, data) {
+            const badge = document.getElementById('responseStatusBadge');
+            badge.style.display = 'inline-block';
+            badge.textContent = `${status} ${status >= 200 && status < 300 ? 'OK' : 'ERROR'}`;
+            badge.className = `status-pill ${status >= 200 && status < 300 ? 'status-2xx' : 'status-4xx'}`;
+
+            document.getElementById('jsonViewer').textContent = JSON.stringify(data, null, 2);
+        }
+
+        // Health Check
+        async function checkHealth() {
+            try {
+                const res = await fetch('/health/');
+                const data = await res.json();
+                if (data.status === 'healthy') {
+                    document.getElementById('healthText').textContent = 'Backend: 🟢 Postgres & Redis OK';
+                } else {
+                    document.getElementById('healthText').textContent = 'Backend: 🔴 Unhealthy';
+                }
+            } catch (e) {
+                document.getElementById('healthText').textContent = 'Backend: ⚠️ Server Offline';
+            }
+        }
+
+        // 1. Login
+        async function handleLogin() {
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+
+            const res = await apiRequest('POST', '/api/v1/auth/login/', { email, password }, false);
+            if (res.status === 200 && res.data.success) {
+                tokens.access = res.data.data.tokens.access;
+                tokens.refresh = res.data.data.tokens.refresh;
+                localStorage.setItem('knowflow_access_token', tokens.access);
+                localStorage.setItem('knowflow_refresh_token', tokens.refresh);
+                currentUser = res.data.data.user;
+                updateAuthDisplay();
+                fetchWorkspaces();
+            }
+        }
+
+        // 2. Register
+        async function handleRegister() {
+            const first_name = document.getElementById('regFirstName').value;
+            const last_name = document.getElementById('regLastName').value;
+            const email = document.getElementById('regEmail').value;
+            const password = document.getElementById('regPassword').value;
+
+            const res = await apiRequest('POST', '/api/v1/auth/register/', {
+                first_name,
+                last_name,
+                email,
+                password
+            }, false);
+
+            if (res.status === 201 && res.data.success) {
+                tokens.access = res.data.data.tokens.access;
+                tokens.refresh = res.data.data.tokens.refresh;
+                localStorage.setItem('knowflow_access_token', tokens.access);
+                localStorage.setItem('knowflow_refresh_token', tokens.refresh);
+                currentUser = res.data.data.user;
+                updateAuthDisplay();
+                fetchWorkspaces();
+            }
+        }
+
+        // 3. Google OAuth
+        async function handleGoogleSignInManual() {
+            const id_token = document.getElementById('manualIdToken').value.trim();
+            if (!id_token) {
+                alert("Please paste a Google ID token or use the Sign in with Google button.");
+                return;
+            }
+
+            const res = await apiRequest('POST', '/api/v1/auth/google/', { id_token }, false);
+            if ((res.status === 200 || res.status === 201) && res.data.success) {
+                tokens.access = res.data.data.tokens.access;
+                tokens.refresh = res.data.data.tokens.refresh;
+                localStorage.setItem('knowflow_access_token', tokens.access);
+                localStorage.setItem('knowflow_refresh_token', tokens.refresh);
+                currentUser = res.data.data.user;
+                updateAuthDisplay();
+                fetchWorkspaces();
+            }
+        }
+
+        window.handleGoogleCredentialResponse = async function(response) {
+            console.log("Google Credential response received:", response);
+            if (response && response.credential) {
+                document.getElementById('manualIdToken').value = response.credential;
+                await handleGoogleSignInManual();
+            } else {
+                alert("Google authentication did not return a credential.");
+            }
+        };
+
+        function initGoogleSignIn() {
+            const clientId = (document.getElementById('googleClientIdInput')?.value || '{{ google_client_id }}').trim();
+            if (!clientId || clientId.startsWith('mock-')) {
+                return;
+            }
+            if (window.google && google.accounts && google.accounts.id) {
+                try {
+                    google.accounts.id.initialize({
+                        client_id: clientId,
+                        callback: window.handleGoogleCredentialResponse,
+                        ux_mode: 'popup',
+                        auto_prompt: false,
+                        use_fedcm_for_prompt: false
+                    });
+                    const btnContainer = document.getElementById('googleBtnContainer');
+                    if (btnContainer) {
+                        btnContainer.innerHTML = '';
+                        google.accounts.id.renderButton(btnContainer, {
+                            type: 'standard',
+                            size: 'large',
+                            theme: 'filled_blue',
+                            text: 'sign_in_with',
+                            shape: 'rectangular',
+                            logo_alignment: 'left',
+                            width: 280
+                        });
+                    }
+                } catch (err) {
+                    console.error("Google Identity Init Error:", err);
+                }
+            }
+        }
+
+        function launchGoogleOAuthDirect() {
+            const clientId = (document.getElementById('googleClientIdInput')?.value || '{{ google_client_id }}').trim();
+            if (!clientId || clientId.startsWith('mock-')) {
+                alert("Please provide a valid Google Client ID.");
+                return;
+            }
+            const redirectUri = window.location.origin;
+            const scope = 'openid email profile';
+            const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token%20id_token&scope=${encodeURIComponent(scope)}&nonce=${Date.now()}&prompt=select_account`;
+
+            const popup = window.open(authUrl, 'google_oauth_popup', 'width=500,height=620,top=100,left=100');
+            
+            const timer = setInterval(() => {
+                try {
+                    if (!popup || popup.closed) {
+                        clearInterval(timer);
+                        return;
+                    }
+                    if (popup.location && popup.location.origin === window.location.origin) {
+                        const hash = popup.location.hash.substring(1);
+                        const params = new URLSearchParams(hash);
+                        const idToken = params.get('id_token');
+                        if (idToken) {
+                            clearInterval(timer);
+                            popup.close();
+                            document.getElementById('manualIdToken').value = idToken;
+                            handleGoogleSignInManual();
+                        }
+                    }
+                } catch (e) {
+                    // Cross-origin access expected until popup redirects back to redirectUri
+                }
+            }, 400);
+        }
+
+        // 4. Refresh Token
+        async function handleRefreshToken() {
+            if (!tokens.refresh) {
+                alert("No refresh token stored.");
+                return;
+            }
+            const res = await apiRequest('POST', '/api/v1/auth/refresh/', { refresh: tokens.refresh }, false);
+            if (res.status === 200 && res.data.success) {
+                tokens.access = res.data.data.access;
+                if (res.data.data.refresh) {
+                    tokens.refresh = res.data.data.refresh;
+                    localStorage.setItem('knowflow_refresh_token', tokens.refresh);
+                }
+                localStorage.setItem('knowflow_access_token', tokens.access);
+                updateAuthDisplay();
+            }
+        }
+
+        // 5. Logout
+        async function handleLogout() {
+            if (tokens.refresh) {
+                await apiRequest('POST', '/api/v1/auth/logout/', { refresh: tokens.refresh }, true);
+            }
+            tokens.access = '';
+            tokens.refresh = '';
+            currentUser = null;
+            localStorage.removeItem('knowflow_access_token');
+            localStorage.removeItem('knowflow_refresh_token');
+            updateAuthDisplay();
+            document.getElementById('workspacesList').innerHTML = '<div style="color: var(--text-muted); font-size: 0.85rem; padding: 8px;">Sign in to load your authorized workspaces.</div>';
+            document.getElementById('workspaceDetailsPanel').style.display = 'none';
+        }
+
+        // 6. Get Profile
+        async function handleGetProfile() {
+            const res = await apiRequest('GET', '/api/v1/auth/me/', null, true);
+            if (res.status === 200 && res.data.success) {
+                currentUser = res.data.data;
+                updateAuthDisplay();
+            }
+        }
+
+        // 7. Workspaces
+        async function fetchWorkspaces() {
+            if (!tokens.access) return;
+            const res = await apiRequest('GET', '/api/v1/workspaces/', null, true);
+            const listEl = document.getElementById('workspacesList');
+
+            const workspaces = res.data.results || res.data.data || [];
+            if (workspaces.length === 0) {
+                listEl.innerHTML = '<div style="color: var(--text-muted); font-size: 0.85rem; padding: 8px;">No workspaces found. Create one above!</div>';
+                return;
+            }
+
+            listEl.innerHTML = workspaces.map(ws => `
+                <div class="workspace-item ${selectedWorkspaceId === ws.id ? 'selected' : ''}" onclick="selectWorkspace('${ws.id}', '${escapeHtml(ws.name)}', '${ws.current_user_role}')">
+                    <div>
+                        <div style="font-weight: 600; font-size: 0.95rem;">${escapeHtml(ws.name)}</div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted);">${escapeHtml(ws.description || 'No description')} &bull; ${ws.member_count} member(s)</div>
+                    </div>
+                    <span class="role-badge role-${ws.current_user_role}">${ws.current_user_role || 'MEMBER'}</span>
+                </div>
+            `).join('');
+        }
+
+        async function handleCreateWorkspace() {
+            const name = document.getElementById('wsName').value.trim();
+            const description = document.getElementById('wsDesc').value.trim();
+            if (!name) {
+                alert("Please enter a workspace name.");
+                return;
+            }
+
+            const res = await apiRequest('POST', '/api/v1/workspaces/', { name, description }, true);
+            if (res.status === 201 && res.data.success) {
+                document.getElementById('wsName').value = '';
+                document.getElementById('wsDesc').value = '';
+                fetchWorkspaces();
+            }
+        }
+
+        async function selectWorkspace(id, name, role) {
+            selectedWorkspaceId = id;
+            document.querySelectorAll('.workspace-item').forEach(el => el.classList.remove('selected'));
+            fetchWorkspaces();
+
+            const panel = document.getElementById('workspaceDetailsPanel');
+            panel.style.display = 'block';
+            document.getElementById('selectedWsTitle').textContent = `Members of ${name}`;
+            const roleBadge = document.getElementById('selectedWsRoleBadge');
+            roleBadge.textContent = `Your Role: ${role}`;
+            roleBadge.className = `role-badge role-${role}`;
+
+            const docCard = document.getElementById('documentsCard');
+            if (docCard) docCard.style.display = 'block';
+
+            fetchWorkspaceMembers(id);
+            fetchDocuments();
+        }
+
+        async function fetchWorkspaceMembers(wsId) {
+            const res = await apiRequest('GET', `/api/v1/workspaces/${wsId}/members/`, null, true);
+            const members = res.data.results || res.data.data || [];
+            const tbody = document.getElementById('membersTableBody');
+
+            tbody.innerHTML = members.map(m => `
+                <tr>
+                    <td>
+                        <div style="font-weight: 500;">${escapeHtml(m.user.email)}</div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted);">${escapeHtml(m.user.full_name || '')}</div>
+                    </td>
+                    <td>
+                        <span class="role-badge role-${m.role}">${m.role}</span>
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-danger" onclick="handleRemoveMember('${wsId}', '${m.user.id}')">Remove</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // ==========================================
+        // 8. Document Management (Phase 2)
+        // ==========================================
+        async function fetchDocuments() {
+            if (!selectedWorkspaceId) return;
+            const res = await apiRequest('GET', `/api/v1/workspaces/${selectedWorkspaceId}/documents/`, null, true);
+            const docs = res.data.results || res.data.data || [];
+            const tbody = document.getElementById('documentsTableBody');
+
+            if (!docs || docs.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 12px;">No documents uploaded yet in this workspace.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = docs.map(d => {
+                const activeVer = d.active_version || {};
+                const sizeKb = activeVer.file_size_bytes ? (activeVer.file_size_bytes / 1024).toFixed(1) + ' KB' : '-';
+                return `
+                    <tr>
+                        <td>
+                            <div style="font-weight: 600; color: #fff;">${escapeHtml(d.title)}</div>
+                            <div style="font-size: 0.72rem; color: var(--text-muted);">${escapeHtml(activeVer.original_filename || '')}</div>
+                        </td>
+                        <td><span style="background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; font-size: 0.75rem;">${d.file_type}</span></td>
+                        <td><span class="role-badge" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4);">${d.status}</span></td>
+                        <td><span style="font-weight: 600; color: var(--accent-cyan);">v${activeVer.version_number || 1}</span></td>
+                        <td><span style="color: var(--text-muted);">${sizeKb}</span></td>
+                        <td>
+                            <div style="display: flex; gap: 4px;">
+                                <button class="btn btn-sm btn-secondary" onclick="handleDownloadDocument('${selectedWorkspaceId}', '${d.id}')">📥 Download</button>
+                                <button class="btn btn-sm btn-danger" onclick="handleDeleteDocument('${selectedWorkspaceId}', '${d.id}', '${escapeHtml(d.title)}')">🗑️</button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        async function handleUploadDocument() {
+            if (!selectedWorkspaceId) {
+                alert("Please select a workspace first.");
+                return;
+            }
+            const fileInput = document.getElementById('docFileInput');
+            if (!fileInput.files || fileInput.files.length === 0) {
+                alert("Please select a file (.pdf, .docx, .txt, .md, .csv) to upload.");
+                return;
+            }
+
+            const file = fileInput.files[0];
+            const title = document.getElementById('docTitle').value.trim();
+            const description = document.getElementById('docDesc').value.trim();
+
+            const formData = new FormData();
+            formData.append('file', file);
+            if (title) formData.append('title', title);
+            if (description) formData.append('description', description);
+
+            const startTime = performance.now();
+            document.getElementById('reqMethod').textContent = 'POST';
+            document.getElementById('reqUrl').textContent = `/api/v1/workspaces/${selectedWorkspaceId}/documents/`;
+
+            try {
+                const response = await fetch(`/api/v1/workspaces/${selectedWorkspaceId}/documents/`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${tokens.access}`
+                    },
+                    body: formData
+                });
+                const latency = Math.round(performance.now() - startTime);
+                document.getElementById('reqLatency').textContent = `${latency}ms`;
+
+                const data = await response.json();
+                renderApiResponse(response.status, data);
+
+                if (response.status === 201) {
+                    fileInput.value = '';
+                    document.getElementById('docTitle').value = '';
+                    document.getElementById('docDesc').value = '';
+                    fetchDocuments();
+                }
+            } catch (err) {
+                renderApiResponse(500, { error: err.message });
+            }
+        }
+
+        async function handleDownloadDocument(wsId, docId) {
+            if (!tokens.access) {
+                alert("Please authenticate first.");
+                return;
+            }
+            try {
+                const downloadUrl = `/api/v1/workspaces/${wsId}/documents/${docId}/download/?token=${encodeURIComponent(tokens.access)}`;
+                const res = await fetch(downloadUrl, {
+                    headers: {
+                        'Authorization': `Bearer ${tokens.access}`
+                    }
+                });
+
+                if (!res.ok) {
+                    const errData = await res.json();
+                    alert(errData.error?.message || "Failed to download document.");
+                    return;
+                }
+
+                const blob = await res.blob();
+                const disposition = res.headers.get('Content-Disposition');
+                let filename = 'document';
+                if (disposition && disposition.indexOf('filename=') !== -1) {
+                    filename = disposition.split('filename=')[1].replace(/"/g, '').trim();
+                }
+
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                window.URL.revokeObjectURL(url);
+            } catch (err) {
+                alert("Download failed: " + err.message);
+            }
+        }
+
+        async function handleDeleteDocument(wsId, docId, docTitle) {
+            if (!confirm(`Are you sure you want to delete '${docTitle}'?`)) return;
+            const res = await apiRequest('DELETE', `/api/v1/workspaces/${wsId}/documents/${docId}/`, null, true);
+            if (res.status === 200 && res.data.success) {
+                fetchDocuments();
+            }
+        }
+
+        async function handleAddMember() {
+            if (!selectedWorkspaceId) return;
+            const email = document.getElementById('inviteEmail').value.trim();
+            const role = document.getElementById('inviteRole').value;
+            if (!email) {
+                alert("Please enter user email to invite.");
+                return;
+            }
+
+            const res = await apiRequest('POST', `/api/v1/workspaces/${selectedWorkspaceId}/members/`, { email, role }, true);
+            if (res.status === 201 && res.data.success) {
+                document.getElementById('inviteEmail').value = '';
+                fetchWorkspaceMembers(selectedWorkspaceId);
+                fetchWorkspaces();
+            }
+        }
+
+        async function handleRemoveMember(wsId, userId) {
+            if (!confirm("Are you sure you want to remove this member?")) return;
+            const res = await apiRequest('DELETE', `/api/v1/workspaces/${wsId}/members/${userId}/`, null, true);
+            if (res.status === 200 && res.data.success) {
+                fetchWorkspaceMembers(wsId);
+                fetchWorkspaces();
+            }
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            return text.replace(/[&<>"']/g, m => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            }[m]));
+        }
+    </script>
+</body>
+</html>

@@ -58,6 +58,7 @@ LOCAL_APPS = [
     'apps.common',
     'apps.accounts',
     'apps.workspaces',
+    'apps.documents',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -103,7 +104,7 @@ ASGI_APPLICATION = 'config.asgi.application'
 DATABASES = {
     'default': env.db(
         'DATABASE_URL',
-        default='postgres://knowflow_user:knowflow_secret@localhost:5432/knowflow_db'
+        default='postgres://udaychaudhary:knowflow_secret@localhost:5432/knowflow_db'
     )
 }
 
@@ -157,10 +158,9 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Django REST Framework Configuration
 # -----------------------------------------------------------------------------
 REST_FRAMEWORK = {
-    # Use JWT authentication by default
+    # Use JWT authentication for all REST API endpoints
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
-        'rest_framework.authentication.SessionAuthentication',  # For browsable API and Django Admin
     ),
     # Require authentication by default for all API endpoints unless explicitly decorated
     'DEFAULT_PERMISSION_CLASSES': (
