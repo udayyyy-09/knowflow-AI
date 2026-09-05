@@ -1157,6 +1157,7 @@
             tbody.innerHTML = docs.map(d => {
                 const activeVer = d.active_version || {};
                 const sizeKb = activeVer.file_size_bytes ? (activeVer.file_size_bytes / 1024).toFixed(1) + ' KB' : '-';
+                const statusColor = d.status === 'READY' ? '#10b981' : (d.status === 'FAILED' ? '#ef4444' : (d.status === 'PROCESSING' ? '#06b6d4' : '#f59e0b'));
                 return `
                     <tr>
                         <td>
@@ -1164,13 +1165,15 @@
                             <div style="font-size: 0.72rem; color: var(--text-muted);">${escapeHtml(activeVer.original_filename || '')}</div>
                         </td>
                         <td><span style="background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; font-size: 0.75rem;">${d.file_type}</span></td>
-                        <td><span class="role-badge" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.4);">${d.status}</span></td>
+                        <td><span class="role-badge" style="background: ${statusColor}22; color: ${statusColor}; border: 1px solid ${statusColor}66;">${d.status}</span></td>
                         <td><span style="font-weight: 600; color: var(--accent-cyan);">v${activeVer.version_number || 1}</span></td>
                         <td><span style="color: var(--text-muted);">${sizeKb}</span></td>
                         <td>
-                            <div style="display: flex; gap: 4px;">
-                                <button class="btn btn-sm btn-secondary" onclick="handleDownloadDocument('${selectedWorkspaceId}', '${d.id}')">📥 Download</button>
-                                <button class="btn btn-sm btn-danger" onclick="handleDeleteDocument('${selectedWorkspaceId}', '${d.id}', '${escapeHtml(d.title)}')">🗑️</button>
+                            <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+                                <button class="btn btn-sm btn-primary" style="padding: 3px 8px; font-size: 0.75rem;" onclick="handleInspectChunks('${selectedWorkspaceId}', '${d.id}', '${escapeHtml(d.title)}')">🧩 Chunks</button>
+                                <button class="btn btn-sm btn-secondary" style="padding: 3px 8px; font-size: 0.75rem;" onclick="handleReprocessDocument('${selectedWorkspaceId}', '${d.id}', '${escapeHtml(d.title)}')">🔄</button>
+                                <button class="btn btn-sm btn-secondary" style="padding: 3px 8px; font-size: 0.75rem;" onclick="handleDownloadDocument('${selectedWorkspaceId}', '${d.id}')">📥</button>
+                                <button class="btn btn-sm btn-danger" style="padding: 3px 8px; font-size: 0.75rem;" onclick="handleDeleteDocument('${selectedWorkspaceId}', '${d.id}', '${escapeHtml(d.title)}')">🗑️</button>
                             </div>
                         </td>
                     </tr>
@@ -1300,6 +1303,48 @@
             }
         }
 
+        async function handleInspectChunks(wsId, docId, docTitle) {
+            document.getElementById('chunkModalTitle').textContent = `Document Chunks: ${docTitle}`;
+            document.getElementById('chunkModalList').innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 20px;">Loading extracted chunks...</div>';
+            document.getElementById('chunkModal').style.display = 'flex';
+
+            const res = await apiRequest('GET', `/api/v1/workspaces/${wsId}/documents/${docId}/chunks/`, null, true);
+            const chunks = res.data.data || [];
+
+            if (!chunks || chunks.length === 0) {
+                document.getElementById('chunkModalList').innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 20px;">No chunks generated yet. Try re-processing the document.</div>';
+                return;
+            }
+
+            document.getElementById('chunkModalList').innerHTML = chunks.map(c => `
+                <div style="background: rgba(0, 0, 0, 0.4); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 12px; margin-bottom: 10px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span class="role-badge" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4);">Chunk #${c.chunk_index}</span>
+                            ${c.page_number ? `<span class="role-badge" style="background: rgba(6, 182, 212, 0.2); color: #67e8f9; border: 1px solid rgba(6, 182, 212, 0.4);">Page ${c.page_number}</span>` : ''}
+                            ${c.section_header ? `<span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 500;">📌 ${escapeHtml(c.section_header)}</span>` : ''}
+                        </div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono);">
+                            <span>${c.char_count} chars</span> • <span>~${c.token_count_estimate} tokens</span>
+                        </div>
+                    </div>
+                    <div style="background: rgba(0, 0, 0, 0.3); border-radius: 4px; padding: 10px; font-family: var(--font-mono); font-size: 0.8rem; color: #e2e8f0; white-space: pre-wrap; word-break: break-word; line-height: 1.4; max-height: 180px; overflow-y: auto;">${escapeHtml(c.content)}</div>
+                </div>
+            `).join('');
+        }
+
+        async function handleReprocessDocument(wsId, docId, docTitle) {
+            if (!confirm(`Re-run parsing and semantic chunking for '${docTitle}'?`)) return;
+            const res = await apiRequest('POST', `/api/v1/workspaces/${wsId}/documents/${docId}/reprocess/`, {}, true);
+            if (res.status === 202 && res.data.success) {
+                fetchDocuments();
+            }
+        }
+
+        function closeChunkModal() {
+            document.getElementById('chunkModal').style.display = 'none';
+        }
+
         function escapeHtml(text) {
             if (!text) return '';
             return text.replace(/[&<>"']/g, m => ({
@@ -1311,5 +1356,17 @@
             }[m]));
         }
     </script>
+
+    <!-- Chunk Viewer Modal -->
+    <div id="chunkModal" style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(4px); z-index: 1000; align-items: center; justify-content: center; padding: 20px;">
+        <div style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--radius-lg); width: 100%; max-width: 760px; max-height: 85vh; display: flex; flex-direction: column; box-shadow: var(--shadow-glass);">
+            <div style="padding: 16px 20px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+                <h3 id="chunkModalTitle" style="font-size: 1.1rem; font-family: var(--font-heading); color: #fff;">Document Chunks</h3>
+                <button class="btn btn-sm btn-secondary" onclick="closeChunkModal()">✕ Close</button>
+            </div>
+            <div id="chunkModalList" style="padding: 16px 20px; overflow-y: auto; flex: 1;">
+            </div>
+        </div>
+    </div>
 </body>
 </html>

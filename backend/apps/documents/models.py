@@ -208,3 +208,78 @@ class DocumentVersion(BaseModel):
 
     def __str__(self):
         return f"{self.document.title} - v{self.version_number}"
+
+
+class DocumentChunk(BaseModel):
+    """
+    Extracted textual chunk from a specific DocumentVersion.
+    Preserves document structure, page numbering, section headers, character counts,
+    and metadata for vector embedding and retrieval.
+    """
+    document = models.ForeignKey(
+        Document,
+        on_delete=models.CASCADE,
+        related_name='chunks',
+        help_text=_('The document this chunk belongs to.')
+    )
+    version = models.ForeignKey(
+        DocumentVersion,
+        on_delete=models.CASCADE,
+        related_name='chunks',
+        help_text=_('The specific document version this chunk was extracted from.')
+    )
+    workspace = models.ForeignKey(
+        Workspace,
+        on_delete=models.CASCADE,
+        related_name='document_chunks',
+        help_text=_('Denormalized workspace reference for fast multi-tenant filtering.')
+    )
+    chunk_index = models.PositiveIntegerField(
+        _('chunk index'),
+        help_text=_('Zero-indexed sequential position of this chunk within the document version.')
+    )
+    content = models.TextField(
+        _('content'),
+        help_text=_('The extracted textual content of the chunk.')
+    )
+    page_number = models.PositiveIntegerField(
+        _('page number'),
+        null=True,
+        blank=True,
+        help_text=_('1-indexed page number if source is paginated (PDF), otherwise null.')
+    )
+    section_header = models.CharField(
+        _('section header'),
+        max_length=255,
+        blank=True,
+        help_text=_('Nearest preceding heading or section title.')
+    )
+    char_count = models.PositiveIntegerField(
+        _('character count'),
+        default=0,
+        help_text=_('Number of characters in this chunk.')
+    )
+    token_count_estimate = models.PositiveIntegerField(
+        _('estimated token count'),
+        default=0,
+        help_text=_('Approximated token count (~4 characters per token).')
+    )
+    metadata = models.JSONField(
+        _('metadata'),
+        default=dict,
+        blank=True,
+        help_text=_('Additional contextual metadata (e.g. source filename, language, custom tags).')
+    )
+
+    class Meta:
+        verbose_name = _('document chunk')
+        verbose_name_plural = _('document chunks')
+        ordering = ['chunk_index']
+        unique_together = ('version', 'chunk_index')
+        indexes = [
+            models.Index(fields=['workspace', 'document']),
+            models.Index(fields=['version', 'chunk_index']),
+        ]
+
+    def __str__(self):
+        return f"{self.document.title} [v{self.version.version_number}] - Chunk #{self.chunk_index}"

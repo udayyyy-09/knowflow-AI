@@ -8,9 +8,36 @@ import os
 import mimetypes
 
 from apps.accounts.serializers import UserProfileSerializer
-from apps.documents.models import Document, DocumentVersion, DocumentStatus, DocumentFileType
+from apps.documents.models import Document, DocumentVersion, DocumentChunk, DocumentStatus, DocumentFileType
 from apps.documents.validators import validate_document_file
 from apps.documents.services.storage import calculate_file_sha256
+from apps.documents.tasks import process_document_version
+
+
+class DocumentChunkSerializer(serializers.ModelSerializer):
+    """
+    Serializer for viewing structured document chunks.
+    """
+    version_number = serializers.IntegerField(source='version.version_number', read_only=True)
+
+    class Meta:
+        model = DocumentChunk
+        fields = [
+            'id',
+            'document_id',
+            'version_id',
+            'version_number',
+            'workspace_id',
+            'chunk_index',
+            'content',
+            'page_number',
+            'section_header',
+            'char_count',
+            'token_count_estimate',
+            'metadata',
+            'created_at',
+        ]
+        read_only_fields = fields
 
 
 class DocumentVersionSerializer(serializers.ModelSerializer):
@@ -83,6 +110,7 @@ class DocumentDetailSerializer(serializers.ModelSerializer):
     created_by = UserProfileSerializer(read_only=True)
     versions = DocumentVersionSerializer(many=True, read_only=True)
     active_version = DocumentVersionSerializer(read_only=True)
+    total_versions_count = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = Document
@@ -94,6 +122,7 @@ class DocumentDetailSerializer(serializers.ModelSerializer):
             'file_type',
             'status',
             'is_active',
+            'total_versions_count',
             'active_version',
             'versions',
             'created_by',
@@ -163,28 +192,31 @@ class DocumentUploadSerializer(serializers.Serializer):
 
         with transaction.atomic():
             document = Document.objects.create(
-                workspace=workspace,
-                title=title,
-                description=description,
-                file_type=file_type,
-                status=DocumentStatus.UPLOADED,
-                created_by=user,
-                is_active=True,
-            )
+                 workspace=workspace,
+                 title=title,
+                 description=description,
+                 file_type=file_type,
+                 status=DocumentStatus.QUEUED,
+                 created_by=user,
+                 is_active=True,
+             )
 
-            DocumentVersion.objects.create(
-                document=document,
-                uploaded_by=user,
-                version_number=1,
-                file=file_obj,
-                original_filename=raw_filename,
-                file_size_bytes=file_obj.size,
-                file_hash_sha256=file_hash,
-                mime_type=mime_type,
-                processing_status=DocumentStatus.UPLOADED,
-                is_active=True,
-                change_summary="Initial document upload",
-            )
+            version = DocumentVersion.objects.create(
+                 document=document,
+                 uploaded_by=user,
+                 version_number=1,
+                 file=file_obj,
+                 original_filename=raw_filename,
+                 file_size_bytes=file_obj.size,
+                 file_hash_sha256=file_hash,
+                 mime_type=mime_type,
+                 processing_status=DocumentStatus.QUEUED,
+                 is_active=True,
+                 change_summary="Initial document upload",
+             )
+
+            version_id_str = str(version.id)
+            transaction.on_commit(lambda: process_document_version.delay(version_id_str))
 
         return document
 
@@ -239,14 +271,17 @@ class DocumentVersionCreateSerializer(serializers.Serializer):
                 file_size_bytes=file_obj.size,
                 file_hash_sha256=file_hash,
                 mime_type=mime_type,
-                processing_status=DocumentStatus.UPLOADED,
+                processing_status=DocumentStatus.QUEUED,
                 is_active=True,
                 change_summary=change_summary or f"Updated to version {new_version_number}",
             )
 
             # Update parent document status & file type
-            document.status = DocumentStatus.UPLOADED
+            document.status = DocumentStatus.QUEUED
             document.file_type = file_type
             document.save(update_fields=['status', 'file_type', 'updated_at'])
+
+            version_id_str = str(new_version.id)
+            transaction.on_commit(lambda: process_document_version.delay(version_id_str))
 
         return new_version
