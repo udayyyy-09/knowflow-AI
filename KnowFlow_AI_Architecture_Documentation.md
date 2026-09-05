@@ -432,19 +432,84 @@ DELETED
 # 11. Document Processing Pipeline
 
 ```mermaid
-flowchart LR
-    F[Uploaded File]
-    V[Validate File]
-    S[Store Original]
-    P[Parse]
-    N[Normalize Text]
-    M[Extract Metadata]
-    C[Chunk]
-    E[Generate Embeddings]
-    I[Index]
-    R[Ready]
+flowchart TD
+    A["USER / BROWSER UI"]
+    B["DJANGO REST API<br/>views.py & serializers.py"]
+    C["RBAC CHECK<br/>Admin / Manager?"]
+    D["FILE VALIDATION<br/>Extension + Max 25MB"]
+    E["SHA-256 CHECKSUM<br/>Duplicate Detection"]
+    F[("POSTGRESQL")]
 
-    F --> V --> S --> P --> N --> M --> C --> E --> I --> R
+    F1["Document<br/>Title + Workspace<br/>Status: QUEUED"]
+    F2["DocumentVersion<br/>v1 + File Path + Hash<br/>Status: QUEUED"]
+
+    G["REDIS<br/>MESSAGE BROKER"]
+    H["CELERY WORKER<br/>tasks.py"]
+    I["DocumentIngestionService<br/>process_version()"]
+    J["UPDATE STATUS<br/>PROCESSING"]
+
+    K["ParserFactory"]
+    K1["PDFParser<br/>pypdf"]
+    L["PARSED BLOCKS<br/>Page # + Section Header + Text"]
+
+    M["RecursiveCharacterChunker"]
+    M1["Semantic Splitting<br/>Paragraphs → Sentences → Words"]
+    M2["~800 Characters<br/>150 Character Overlap"]
+    M3["Token Estimate<br/>~4 Characters / Token"]
+
+    N[("POSTGRESQL<br/>DocumentChunk")]
+    N1["Chunk Metadata<br/>Workspace + Document + Version<br/>Page + Section + Token Count"]
+
+    O["UPDATE STATUS<br/>READY"]
+    P["USER INSPECTION"]
+    Q["GET /documents/{doc_id}/chunks/"]
+    R["BROWSER CHUNK INSPECTOR"]
+    R1["Chunk Index"]
+    R2["Page #"]
+    R3["Text Content"]
+
+    A -->|"1. Multipart POST"| B
+    B -->|"2"| C
+    C -->|"3"| D
+    D -->|"4"| E
+    E -->|"5. Save"| F
+
+    F --> F1
+    F --> F2
+
+    F -->|"6. transaction.on_commit()"| G
+    G -->|"7. process_document_version(version_id)"| H
+    H -->|"8"| I
+    I -->|"9"| J
+    J -->|"10"| K
+    K --> K1
+    K1 -->|"11. Parse File Stream"| L
+    L -->|"12"| M
+    M --> M1
+    M1 --> M2
+    M2 --> M3
+    M3 -->|"13. Bulk Insert"| N
+    N --> N1
+    N1 -->|"14"| O
+    O --> P
+    P -->|"GET"| Q
+    Q --> R
+
+    R --> R1
+    R --> R2
+    R --> R3
+
+    classDef user fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    classDef api fill:#ede7f6,stroke:#4527a0,stroke-width:2px
+    classDef db fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    classDef async fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
+    classDef process fill:#fce4ec,stroke:#c2185b,stroke-width:2px
+
+    class A,P,R,R1,R2,R3 user
+    class B,C,D,E,Q api
+    class F,F1,F2,N,N1,O db
+    class G,H async
+    class I,J,K,K1,L,M,M1,M2,M3 process
 ```
 
 ## 11.1 Validation

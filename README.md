@@ -39,6 +39,20 @@ backend/
 │   │   ├── urls.py                 # /api/v1/auth/ routes
 │   │   └── admin.py                # Django Admin UserAdmin customized for email-based login
 │   │
+│   ├── documents/                  # Document Management & Ingestion Pipeline
+│   │   ├── models.py               # Document, DocumentVersion, DocumentChunk
+│   │   ├── permissions.py          # CanManageWorkspaceDocuments
+│   │   ├── serializers.py          # Document, Version, Chunk serializers
+│   │   ├── views.py                # Upload, Versioning, Download, Chunks, Reprocess views
+│   │   ├── urls.py                 # /api/v1/workspaces/<id>/documents/ routes
+│   │   ├── tasks.py                # process_document_version Celery task
+│   │   ├── services/
+│   │   │   ├── storage.py          # Multi-tenant path hashing & SHA-256 calculation
+│   │   │   └── ingestion.py        # DocumentIngestionService
+│   │   └── pipeline/
+│   │       ├── parsers/            # PDFParser, DOCXParser, MarkdownParser, TextParser, Factory
+│   │       └── chunkers/           # RecursiveCharacterChunker (with overlap & metadata)
+│   │
 │   └── workspaces/                 # Multi-Tenant Workspaces & RBAC
 │       ├── models.py               # Workspace (slug, tenant boundary), WorkspaceMembership
 │       ├── permissions.py          # IsWorkspaceMember, IsWorkspaceAdmin, IsWorkspaceManagerOrAdmin
@@ -51,7 +65,9 @@ backend/
 │   ├── conftest.py                 # Shared fixtures (users, tokens, clients, workspaces)
 │   ├── test_accounts.py            # Registration, Login, JWT rotation, Google OAuth, Me
 │   ├── test_workspaces.py          # Workspace CRUD and Member management tests
-│   └── test_rbac.py                # Strict RBAC permission rejection tests
+│   ├── test_rbac.py                # Strict RBAC permission rejection tests
+│   ├── test_documents.py           # Document upload, versioning, download, archive tests
+│   └── test_processing_pipeline.py # Parsers, chunker, Celery task, chunks API tests
 │
 ├── manage.py                       # Administrative CLI entry point
 ├── pyproject.toml                  # Python package metadata & tool configuration
@@ -141,6 +157,19 @@ backend/
 | `PATCH` | `/api/v1/workspaces/<id>/members/<user_id>/` | Update member role | Admin |
 | `DELETE` | `/api/v1/workspaces/<id>/members/<user_id>/` | Remove member from workspace | Admin |
 
+### Document Management Endpoints (Phase 2)
+
+| Method | Endpoint | Description | Auth / Role Required |
+|---|---|---|---|
+| `GET` | `/api/v1/workspaces/<ws_id>/documents/` | List workspace documents (supports `status`, `file_type`, `search`) | Member |
+| `POST` | `/api/v1/workspaces/<ws_id>/documents/` | Upload document (`.pdf`, `.docx`, `.txt`, `.md`, `.csv`) | Admin / Manager |
+| `GET` | `/api/v1/workspaces/<ws_id>/documents/<doc_id>/` | Get document details & version history | Member |
+| `PATCH` | `/api/v1/workspaces/<ws_id>/documents/<doc_id>/` | Update document title or description | Admin / Manager |
+| `DELETE` | `/api/v1/workspaces/<ws_id>/documents/<doc_id>/` | Soft-delete / Archive document | Admin / Manager |
+| `GET` | `/api/v1/workspaces/<ws_id>/documents/<doc_id>/versions/` | List all historical versions | Member |
+| `POST` | `/api/v1/workspaces/<ws_id>/documents/<doc_id>/versions/` | Upload a new version (v2, v3...) | Admin / Manager |
+| `GET` | `/api/v1/workspaces/<ws_id>/documents/<doc_id>/download/` | Secure streaming file download | Member |
+
 ### System Endpoints
 
 | Method | Endpoint | Description |
@@ -150,7 +179,11 @@ backend/
 
 ---
 
-## 5. Running the Test Suite
+## 5. Continuous Integration (CI) & Test Suite
+
+The repository includes an automated GitHub Actions CI pipeline ([.github/workflows/ci.yml](file:///.github/workflows/ci.yml)) that runs on every push and pull request.
+
+To run the test suite locally:
 
 ```bash
 cd backend
