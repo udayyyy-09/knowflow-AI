@@ -1,10 +1,10 @@
 """
-Document Ingestion & Chunking Service for KnowFlow AI.
-Coordinates file parsing, chunk generation, and database persistence.
+Document Ingestion, Chunking & Embedding Service for KnowFlow AI.
+Coordinates file parsing, chunk generation, vector embedding, and database persistence.
 """
 import logging
 import traceback
-from typing import List
+from typing import List, Optional
 from django.db import transaction
 from django.utils.translation import gettext_lazy as _
 
@@ -12,31 +12,41 @@ from apps.documents.models import (
     Document,
     DocumentVersion,
     DocumentChunk,
+    Embedding,
     DocumentStatus
 )
 from apps.documents.pipeline.parsers import ParserFactory
 from apps.documents.pipeline.chunkers import RecursiveCharacterChunker
+from apps.documents.services.embedding_service import EmbeddingService
 
 logger = logging.getLogger(__name__)
 
 
 class DocumentIngestionService:
     """
-    Coordinates end-to-end ingestion:
+    Coordinates end-to-end ingestion pipeline:
     1. Status transition (QUEUED -> PROCESSING)
     2. Format detection & text parsing
     3. Semantic hierarchical chunking
     4. Database persistence of DocumentChunk records
-    5. Final status update (READY or FAILED)
+    5. Status transition (PROCESSING -> EMBEDDING)
+    6. Vector embedding generation via EmbeddingService
+    7. Final status update (READY or FAILED)
     """
 
-    def __init__(self, chunk_size: int = 800, chunk_overlap: int = 150):
+    def __init__(
+        self,
+        chunk_size: int = 800,
+        chunk_overlap: int = 150,
+        embedding_service: Optional[EmbeddingService] = None,
+    ):
         self.chunker = RecursiveCharacterChunker(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+        self.embedding_service = embedding_service or EmbeddingService()
 
     def process_version(self, version_id: str) -> List[DocumentChunk]:
         """
         Executes ingestion pipeline for a given DocumentVersion.
-        Idempotent: removes existing chunks for this version before creating new ones.
+        Idempotent: removes existing chunks and embeddings for this version before re-generating.
         """
         try:
             version = DocumentVersion.objects.select_related('document', 'document__workspace').get(id=version_id)
@@ -78,9 +88,9 @@ class DocumentIngestionService:
 
             raw_chunks = self.chunker.chunk_document(parsed_doc, base_metadata=base_metadata)
 
-            # 4. Atomically persist chunks & update status
+            # 4. Atomically persist chunks
             with transaction.atomic():
-                # Delete existing chunks for idempotency
+                # Delete existing chunks and embeddings for idempotency
                 DocumentChunk.objects.filter(version=version).delete()
 
                 chunk_instances = [
@@ -101,17 +111,26 @@ class DocumentIngestionService:
 
                 created_chunks = DocumentChunk.objects.bulk_create(chunk_instances)
 
-                # Update version status to READY
-                version.processing_status = DocumentStatus.READY
-                version.save(update_fields=['processing_status', 'updated_at'])
+            # 5. Transition status to EMBEDDING
+            version.processing_status = DocumentStatus.EMBEDDING
+            version.save(update_fields=['processing_status', 'updated_at'])
+            doc.status = DocumentStatus.EMBEDDING
+            doc.save(update_fields=['status', 'updated_at'])
 
-                # Update document status to READY if active version is ready
-                if version.is_active:
-                    doc.status = DocumentStatus.READY
-                    doc.save(update_fields=['status', 'updated_at'])
+            # 6. Generate and persist vector embeddings
+            if created_chunks:
+                self.embedding_service.generate_embeddings_for_chunks(created_chunks)
+
+            # 7. Update status to READY
+            version.processing_status = DocumentStatus.READY
+            version.save(update_fields=['processing_status', 'updated_at'])
+
+            if version.is_active:
+                doc.status = DocumentStatus.READY
+                doc.save(update_fields=['status', 'updated_at'])
 
             logger.info(
-                "Successfully processed DocumentVersion %s (%s). Created %d chunks.",
+                "Successfully processed and embedded DocumentVersion %s (%s). Created %d chunks with embeddings.",
                 version.id,
                 version.original_filename,
                 len(created_chunks)

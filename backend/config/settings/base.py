@@ -52,6 +52,7 @@ THIRD_PARTY_APPS = [
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
+    'pgvector.django',
 ]
 
 LOCAL_APPS = [
@@ -251,3 +252,15 @@ CACHES = {
         'LOCATION': env('REDIS_URL', default='redis://localhost:6379/0'),
     }
 }
+
+# -----------------------------------------------------------------------------
+# Embeddings & Vector Search Configuration
+# -----------------------------------------------------------------------------
+EMBEDDING_PROVIDER = env('EMBEDDING_PROVIDER', default='openai')  # 'openai', 'gemini', 'mock'
+EMBEDDING_MODEL_NAME = env('EMBEDDING_MODEL_NAME', default='text-embedding-3-small')
+EMBEDDING_DIMENSIONS = env.int('EMBEDDING_DIMENSIONS', default=1536)
+EMBEDDING_BATCH_SIZE = env.int('EMBEDDING_BATCH_SIZE', default=64)
+EMBEDDING_TIMEOUT_SECONDS = env.int('EMBEDDING_TIMEOUT_SECONDS', default=30)
+OPENAI_API_KEY = env('OPENAI_API_KEY', default='')
+GEMINI_API_KEY = env('GEMINI_API_KEY', default='')
+

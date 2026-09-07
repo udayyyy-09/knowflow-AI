@@ -10,9 +10,11 @@ from django.http import FileResponse, Http404
 import os
 
 from apps.workspaces.models import Workspace
-from apps.documents.models import Document, DocumentVersion, DocumentChunk, DocumentStatus
+from apps.workspaces.permissions import IsWorkspaceMember
+from apps.documents.models import Document, DocumentVersion, DocumentChunk, Embedding, DocumentStatus
 from apps.documents.permissions import CanManageWorkspaceDocuments
-from apps.documents.tasks import process_document_version
+from apps.documents.tasks import process_document_version, reembed_document_version
+from apps.documents.services.vector_search import VectorSearchService
 from apps.documents.serializers import (
     DocumentListSerializer,
     DocumentDetailSerializer,
@@ -20,6 +22,9 @@ from apps.documents.serializers import (
     DocumentVersionSerializer,
     DocumentVersionCreateSerializer,
     DocumentChunkSerializer,
+    EmbeddingSerializer,
+    VectorSearchQuerySerializer,
+    VectorSearchResultSerializer,
 )
 
 
@@ -352,3 +357,103 @@ class DocumentReprocessView(APIView):
                 "status": DocumentStatus.QUEUED
             }
         }, status=status.HTTP_202_ACCEPTED)
+
+
+class DocumentReembedView(APIView):
+    """
+    POST /api/v1/workspaces/<workspace_id>/documents/<document_id>/reembed/
+    Asynchronously regenerates embeddings for all chunks in the document's active or specified version.
+    """
+    permission_classes = [permissions.IsAuthenticated, CanManageWorkspaceDocuments]
+
+    def post(self, request, workspace_id, document_id):
+        document = get_object_or_404(Document, id=document_id, workspace_id=workspace_id, is_active=True)
+        version_id = request.data.get('version_id')
+
+        if version_id:
+            target_version = get_object_or_404(DocumentVersion, id=version_id, document=document)
+        else:
+            target_version = document.active_version
+
+        if not target_version:
+            return Response(
+                {
+                    "success": False,
+                    "error": {
+                        "code": "NO_ACTIVE_VERSION",
+                        "message": "No file version exists to re-embed.",
+                        "details": None
+                    }
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        reembed_document_version.delay(str(target_version.id))
+
+        return Response({
+            "success": True,
+            "message": f"Re-embedding task queued for '{document.title}' (v{target_version.version_number}).",
+            "data": {
+                "document_id": str(document.id),
+                "version_id": str(target_version.id),
+                "version_number": target_version.version_number,
+            }
+        }, status=status.HTTP_202_ACCEPTED)
+
+
+class VectorSearchView(APIView):
+    """
+    POST /api/v1/workspaces/<workspace_id>/search/
+    Semantic vector similarity search across all active documents in the workspace.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsWorkspaceMember]
+
+    def post(self, request, workspace_id):
+        workspace = get_object_or_404(Workspace, id=workspace_id, is_active=True)
+
+        query_serializer = VectorSearchQuerySerializer(data=request.data)
+        query_serializer.is_valid(raise_exception=True)
+
+        validated_data = query_serializer.validated_data
+        query_text = validated_data['query']
+        top_k = validated_data.get('top_k', 5)
+        min_score = validated_data.get('min_score', 0.0)
+        document_ids = [str(doc_id) for doc_id in validated_data.get('document_ids', [])] if validated_data.get('document_ids') else None
+
+        search_service = VectorSearchService()
+        raw_results = search_service.search(
+            workspace=workspace,
+            query_text=query_text,
+            top_k=top_k,
+            min_score=min_score,
+            document_ids=document_ids,
+        )
+
+        results_data = [
+            {
+                "chunk_id": res.chunk_id,
+                "chunk_index": res.chunk_index,
+                "content": res.content,
+                "page_number": res.page_number,
+                "section_header": res.section_header,
+                "metadata": res.metadata,
+                "document_id": res.document_id,
+                "document_title": res.document_title,
+                "version_id": res.version_id,
+                "version_number": res.version_number,
+                "similarity_score": res.similarity_score,
+                "cosine_distance": res.cosine_distance,
+            }
+            for res in raw_results
+        ]
+
+        result_serializer = VectorSearchResultSerializer(results_data, many=True)
+
+        return Response({
+            "success": True,
+            "query": query_text,
+            "count": len(results_data),
+            "workspace_id": str(workspace.id),
+            "results": result_serializer.data,
+        }, status=status.HTTP_200_OK)
+

@@ -3,7 +3,7 @@ Django Admin Configuration for Document Management.
 """
 from django.contrib import admin
 from django.utils.html import format_html
-from apps.documents.models import Document, DocumentVersion, DocumentChunk
+from apps.documents.models import Document, DocumentVersion, DocumentChunk, Embedding
 
 
 class DocumentVersionInline(admin.TabularInline):
@@ -103,3 +103,21 @@ class DocumentChunkAdmin(admin.ModelAdmin):
     list_filter = ['workspace', 'document', 'page_number']
     search_fields = ['content', 'section_header', 'document__title']
     readonly_fields = ['id', 'created_at', 'updated_at']
+
+
+@admin.register(Embedding)
+class EmbeddingAdmin(admin.ModelAdmin):
+    list_display = [
+        'id',
+        'chunk',
+        'document',
+        'workspace',
+        'model_name',
+        'dimensions',
+        'is_active',
+        'created_at',
+    ]
+    list_filter = ['workspace', 'model_name', 'dimensions', 'is_active']
+    search_fields = ['chunk__content', 'document__title', 'workspace__name']
+    readonly_fields = ['id', 'created_at', 'updated_at']
+

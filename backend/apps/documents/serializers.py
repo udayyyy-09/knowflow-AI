@@ -8,7 +8,14 @@ import os
 import mimetypes
 
 from apps.accounts.serializers import UserProfileSerializer
-from apps.documents.models import Document, DocumentVersion, DocumentChunk, DocumentStatus, DocumentFileType
+from apps.documents.models import (
+    Document,
+    DocumentVersion,
+    DocumentChunk,
+    Embedding,
+    DocumentStatus,
+    DocumentFileType,
+)
 from apps.documents.validators import validate_document_file
 from apps.documents.services.storage import calculate_file_sha256
 from apps.documents.tasks import process_document_version
@@ -285,3 +292,76 @@ class DocumentVersionCreateSerializer(serializers.Serializer):
             transaction.on_commit(lambda: process_document_version.delay(version_id_str))
 
         return new_version
+
+
+class EmbeddingSerializer(serializers.ModelSerializer):
+    """
+    Serializer for viewing Embedding metadata.
+    """
+    chunk_index = serializers.IntegerField(source='chunk.chunk_index', read_only=True)
+
+    class Meta:
+        model = Embedding
+        fields = [
+            'id',
+            'chunk_id',
+            'chunk_index',
+            'document_id',
+            'workspace_id',
+            'model_name',
+            'dimensions',
+            'is_active',
+            'created_at',
+        ]
+        read_only_fields = fields
+
+
+class VectorSearchQuerySerializer(serializers.Serializer):
+    """
+    Serializer for validating semantic search requests.
+    """
+    query = serializers.CharField(
+        required=True,
+        min_length=1,
+        max_length=2000,
+        help_text="User question or query string for semantic vector search."
+    )
+    top_k = serializers.IntegerField(
+        required=False,
+        default=5,
+        min_value=1,
+        max_value=50,
+        help_text="Maximum number of relevant chunks to retrieve (1-50, default 5)."
+    )
+    min_score = serializers.FloatField(
+        required=False,
+        default=0.0,
+        min_value=0.0,
+        max_value=1.0,
+        help_text="Minimum cosine similarity score threshold (0.0 to 1.0, default 0.0)."
+    )
+    document_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        required=False,
+        allow_empty=True,
+        help_text="Optional list of document IDs to scope search within."
+    )
+
+
+class VectorSearchResultSerializer(serializers.Serializer):
+    """
+    Serializer for formatting individual semantic search hit results.
+    """
+    chunk_id = serializers.UUIDField()
+    chunk_index = serializers.IntegerField()
+    content = serializers.CharField()
+    page_number = serializers.IntegerField(allow_null=True)
+    section_header = serializers.CharField(allow_blank=True)
+    metadata = serializers.DictField()
+    document_id = serializers.UUIDField()
+    document_title = serializers.CharField()
+    version_id = serializers.UUIDField()
+    version_number = serializers.IntegerField()
+    similarity_score = serializers.FloatField()
+    cosine_distance = serializers.FloatField()
+

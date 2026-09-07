@@ -13,10 +13,10 @@ backend/
 ├── config/                         # Core Django Project Configuration
 │   ├── settings/
 │   │   ├── __init__.py
-│   │   ├── base.py                 # Shared settings (DRF, JWT, Celery, Google OAuth)
+│   │   ├── base.py                 # Shared settings (DRF, JWT, Celery, Google OAuth, Embeddings)
 │   │   ├── development.py          # Dev settings (verbose logging, relaxed CORS)
 │   │   ├── production.py           # Prod settings (SSL, strict security headers)
-│   │   └── test.py                 # Test settings (in-memory SQLite, fast MD5 hashers)
+│   │   └── test.py                 # Test settings (in-memory SQLite, fast MD5 hashers, mock embeddings)
 │   ├── celery.py                   # Celery asynchronous task application
 │   ├── urls.py                     # Main routing table (/admin/, /health/, /api/v1/...)
 │   ├── wsgi.py                     # WSGI gateway for production servers
@@ -40,18 +40,21 @@ backend/
 │   │   └── admin.py                # Django Admin UserAdmin customized for email-based login
 │   │
 │   ├── documents/                  # Document Management & Ingestion Pipeline
-│   │   ├── models.py               # Document, DocumentVersion, DocumentChunk
+│   │   ├── models.py               # Document, DocumentVersion, DocumentChunk, Embedding
 │   │   ├── permissions.py          # CanManageWorkspaceDocuments
-│   │   ├── serializers.py          # Document, Version, Chunk serializers
-│   │   ├── views.py                # Upload, Versioning, Download, Chunks, Reprocess views
+│   │   ├── serializers.py          # Document, Version, Chunk, Embedding, VectorSearch serializers
+│   │   ├── views.py                # Upload, Versioning, Download, Chunks, Reprocess, Reembed, Search
 │   │   ├── urls.py                 # /api/v1/workspaces/<id>/documents/ routes
-│   │   ├── tasks.py                # process_document_version Celery task
+│   │   ├── tasks.py                # Celery tasks (process_document_version, reembed_document_version, reembed_workspace)
 │   │   ├── services/
 │   │   │   ├── storage.py          # Multi-tenant path hashing & SHA-256 calculation
-│   │   │   └── ingestion.py        # DocumentIngestionService
+│   │   │   ├── ingestion.py        # DocumentIngestionService
+│   │   │   ├── embedding_service.py# Batch embedding generation & persistence
+│   │   │   └── vector_search.py    # Multi-tenant pgvector cosine similarity search
 │   │   └── pipeline/
 │   │       ├── parsers/            # PDFParser, DOCXParser, MarkdownParser, TextParser, Factory
-│   │       └── chunkers/           # RecursiveCharacterChunker (with overlap & metadata)
+│   │       ├── chunkers/           # RecursiveCharacterChunker (with overlap & metadata)
+│   │       └── embeddings/         # BaseEmbeddingProvider, OpenAI, Gemini, Mock, Factory
 │   │
 │   └── workspaces/                 # Multi-Tenant Workspaces & RBAC
 │       ├── models.py               # Workspace (slug, tenant boundary), WorkspaceMembership
@@ -67,7 +70,8 @@ backend/
 │   ├── test_workspaces.py          # Workspace CRUD and Member management tests
 │   ├── test_rbac.py                # Strict RBAC permission rejection tests
 │   ├── test_documents.py           # Document upload, versioning, download, archive tests
-│   └── test_processing_pipeline.py # Parsers, chunker, Celery task, chunks API tests
+│   ├── test_processing_pipeline.py # Parsers, chunker, Celery task, chunks API tests
+│   └── test_embeddings.py          # Providers, embedding service, vector search, permissions tests
 │
 ├── manage.py                       # Administrative CLI entry point
 ├── pyproject.toml                  # Python package metadata & tool configuration
@@ -126,6 +130,18 @@ backend/
   - `IsWorkspaceMember`: Verifies membership before granting any data access.
   - `IsWorkspaceAdmin`: Restricts sensitive operations (adding members, updating roles, workspace deletion).
   - `IsWorkspaceManagerOrAdmin`: Restricts document uploads and management.
+
+---
+
+### D. Embeddings & Vector Search Subsystem (`apps.documents.pipeline.embeddings` & `services`)
+- **Pluggable Providers**:
+  - `OpenAIEmbeddingProvider` (`text-embedding-3-small` 1536 dims, `text-embedding-3-large` 3072 dims).
+  - `GeminiEmbeddingProvider` (`text-embedding-004` 768 dims).
+  - `MockEmbeddingProvider` (deterministic, unit-normalized vectors for offline testing).
+- **Storage & Indexing**:
+  - `Embedding` model with `VectorField(dimensions=1536)` and `HnswIndex(opclasses=['vector_cosine_ops'])`.
+- **Retrieval Engine**:
+  - `VectorSearchService.search()` performs cosine distance calculations scoped strictly to the caller's workspace.
 
 ---
 
@@ -214,4 +230,3 @@ cd backend
 source .venv/bin/activate
 pytest --cov=apps --cov-report=term-missing
 ```
-

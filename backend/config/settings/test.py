@@ -33,3 +33,9 @@ CELERY_TASK_EAGER_PROPAGATES = True
 
 # Mock Google Client ID for testing
 GOOGLE_CLIENT_ID = 'test-google-client-id.apps.googleusercontent.com'
+
+# Mock embedding provider for fast offline deterministic testing
+EMBEDDING_PROVIDER = 'mock'
+EMBEDDING_MODEL_NAME = 'mock-embedding-v1'
+EMBEDDING_DIMENSIONS = 1536
+

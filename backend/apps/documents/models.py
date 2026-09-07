@@ -12,6 +12,22 @@ import os
 from apps.common.models import BaseModel
 from apps.workspaces.models import Workspace
 from apps.documents.services.storage import document_upload_path
+from pgvector.django import VectorField
+import pgvector.django
+
+
+class HnswIndex(pgvector.django.HnswIndex):
+    """
+    HNSW index with PostgreSQL vendor safety for cross-environment testing.
+    On PostgreSQL: creates HNSW vector index with cosine ops and m/ef parameters.
+    On non-PostgreSQL (e.g. SQLite test runners): creates a standard index.
+    """
+    def create_sql(self, model, schema_editor, using="", **kwargs):
+        if schema_editor.connection.vendor != "postgresql":
+            return models.Index.create_sql(self, model, schema_editor, using="", **kwargs)
+        return super().create_sql(model, schema_editor, using=using, **kwargs)
+
+
 
 
 class DocumentStatus(models.TextChoices):
@@ -283,3 +299,67 @@ class DocumentChunk(BaseModel):
 
     def __str__(self):
         return f"{self.document.title} [v{self.version.version_number}] - Chunk #{self.chunk_index}"
+
+
+class Embedding(BaseModel):
+    """
+    Vector representation of a DocumentChunk for semantic similarity search in RAG.
+    Stored using native pgvector VectorField and indexed via HNSW cosine distance.
+    """
+    chunk = models.OneToOneField(
+        DocumentChunk,
+        on_delete=models.CASCADE,
+        related_name='embedding',
+        help_text=_('The document chunk this vector embedding represents.')
+    )
+    document = models.ForeignKey(
+        Document,
+        on_delete=models.CASCADE,
+        related_name='embeddings',
+        help_text=_('Denormalized document reference for cascading and fast queries.')
+    )
+    workspace = models.ForeignKey(
+        Workspace,
+        on_delete=models.CASCADE,
+        related_name='embeddings',
+        help_text=_('Denormalized workspace reference for multi-tenant isolation.')
+    )
+    vector = VectorField(
+        dimensions=1536,
+        help_text=_('Dense float vector representation.')
+    )
+    model_name = models.CharField(
+        _('model name'),
+        max_length=100,
+        default='text-embedding-3-small',
+        help_text=_('Embedding model used (e.g. text-embedding-3-small, text-embedding-004).')
+    )
+    dimensions = models.PositiveIntegerField(
+        _('dimensions'),
+        default=1536,
+        help_text=_('Vector dimensionality.')
+    )
+    is_active = models.BooleanField(
+        _('is active'),
+        default=True,
+        help_text=_('Whether this embedding is active and searchable in RAG.')
+    )
+
+    class Meta:
+        verbose_name = _('embedding')
+        verbose_name_plural = _('embeddings')
+        indexes = [
+            models.Index(fields=['workspace', 'is_active']),
+            models.Index(fields=['document', 'is_active']),
+            HnswIndex(
+                name='embedding_vector_hnsw_idx',
+                fields=['vector'],
+                m=16,
+                ef_construction=64,
+                opclasses=['vector_cosine_ops'],
+            ),
+        ]
+
+    def __str__(self):
+        return f"Embedding for Chunk #{self.chunk.chunk_index} ({self.model_name})"
+
