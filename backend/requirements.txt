@@ -15,3 +15,5 @@ pytest-cov>=5.0.0
 factory-boy>=3.3.1
 pypdf>=4.3.0
 python-docx>=1.1.0
+fastembed>=0.8.0
+langfuse>=4.15.0
