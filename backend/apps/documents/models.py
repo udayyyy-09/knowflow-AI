@@ -325,18 +325,18 @@ class Embedding(BaseModel):
         help_text=_('Denormalized workspace reference for multi-tenant isolation.')
     )
     vector = VectorField(
-        dimensions=1536,
+        dimensions=getattr(settings, 'EMBEDDING_DIMENSIONS', 1536),
         help_text=_('Dense float vector representation.')
     )
     model_name = models.CharField(
         _('model name'),
         max_length=100,
         default='text-embedding-3-small',
-        help_text=_('Embedding model used (e.g. text-embedding-3-small, text-embedding-004).')
+        help_text=_('Embedding model used (e.g. text-embedding-3-small, text-embedding-004, bge-small-en-v1.5).')
     )
     dimensions = models.PositiveIntegerField(
         _('dimensions'),
-        default=1536,
+        default=getattr(settings, 'EMBEDDING_DIMENSIONS', 1536),
         help_text=_('Vector dimensionality.')
     )
     is_active = models.BooleanField(

@@ -20,6 +20,8 @@ dependencies = [
     "celery>=5.4.0",
     "google-auth>=2.34.0",
     "requests>=2.32.3",
+    "fastembed>=0.8.0",
+    "langfuse>=4.15.0",
 ]
 
 [project.optional-dependencies]

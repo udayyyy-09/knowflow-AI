@@ -736,6 +736,46 @@
                 </div>
             </div>
 
+            <!-- Phase 5: RAG Conversational Assistant & Citations Playground -->
+            <div class="glass-card" id="chatCard" style="display: none;">
+                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                    <h2 class="card-title">💬 RAG AI Assistant (Phase 5)</h2>
+                    <div style="display: flex; gap: 6px; align-items: center;">
+                        <button class="btn btn-secondary btn-sm" onclick="startNewConversation()" style="padding: 3px 8px; font-size: 0.75rem;">+ New Thread</button>
+                    </div>
+                </div>
+
+                <!-- Active Thread Status Bar -->
+                <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.2); padding: 6px 10px; border-radius: 4px;">
+                    <div>Thread: <strong id="activeConvTitle" style="color: var(--accent-cyan);">None (will auto-create)</strong></div>
+                    <div id="activeConvMsgCount" style="font-size: 0.75rem; color: #a78bfa;">0 messages</div>
+                </div>
+
+                <!-- Chat Messages Scroll Container -->
+                <div id="chatMessagesContainer" style="background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); border-radius: var(--radius-md); height: 320px; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 12px; margin-bottom: 12px;">
+                    <div style="text-align: center; color: var(--text-muted); font-size: 0.85rem; margin-top: 100px;">
+                        🤖 Ask questions about your workspace documents.<br>
+                        The RAG engine retrieves chunks, constructs context, and generates grounded answers with citations.
+                    </div>
+                </div>
+
+                <!-- Chat Input Controls -->
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <div style="display: flex; gap: 8px;">
+                        <input type="text" id="chatInputText" placeholder="Ask a question (e.g. 'What is the sick leave policy?')" style="flex: 1;" onkeydown="if(event.key==='Enter') sendChatMessage()">
+                        <button class="btn btn-primary" onclick="sendChatMessage()" id="sendChatBtn" style="padding: 0 16px;">
+                            <span>Send</span>
+                        </button>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: var(--text-muted);">
+                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                            <input type="checkbox" id="streamToggle" checked> Stream Tokens (Server-Sent Events)
+                        </label>
+                        <span id="chatStatusText" style="color: var(--accent-purple);">Ready</span>
+                    </div>
+                </div>
+            </div>
+
         </div>
 
         <!-- Right Column: Live API Inspector -->
@@ -1144,8 +1184,12 @@
             const searchCard = document.getElementById('searchCard');
             if (searchCard) searchCard.style.display = 'block';
 
+            const chatCard = document.getElementById('chatCard');
+            if (chatCard) chatCard.style.display = 'block';
+
             fetchWorkspaceMembers(id);
             fetchDocuments();
+            fetchConversations(id);
         }
 
         async function fetchWorkspaceMembers(wsId) {
@@ -1419,6 +1463,300 @@
             } else {
                 container.innerHTML = `<div style="color: #ef4444; padding: 8px; font-size: 0.85rem;">Search failed: ${escapeHtml(res.data.error?.message || 'Server error')}</div>`;
             }
+        }
+
+        // =========================================================================
+        // Phase 5: RAG Conversational Assistant & SSE Streaming
+        // =========================================================================
+        let activeConversationId = null;
+
+        async function fetchConversations(wsId) {
+            if (!wsId) return;
+            const res = await apiRequest('GET', `/api/v1/workspaces/${wsId}/conversations/`, null, true);
+            if (res.status === 200 && res.data.success) {
+                const convs = res.data.results || [];
+                if (convs.length > 0) {
+                    // Load the most recent conversation
+                    activeConversationId = convs[0].id;
+                    document.getElementById('activeConvTitle').textContent = convs[0].title || 'Untitled Chat';
+                    document.getElementById('activeConvMsgCount').textContent = `${convs[0].message_count || 0} messages`;
+                    loadConversation(convs[0].id);
+                } else {
+                    activeConversationId = null;
+                    document.getElementById('activeConvTitle').textContent = 'None (will auto-create on send)';
+                    document.getElementById('activeConvMsgCount').textContent = '0 messages';
+                    document.getElementById('chatMessagesContainer').innerHTML = `
+                        <div style="text-align: center; color: var(--text-muted); font-size: 0.85rem; margin-top: 100px;">
+                            🤖 Ask questions about your workspace documents.<br>
+                            The RAG engine retrieves chunks, constructs context, and generates grounded answers with citations.
+                        </div>
+                    `;
+                }
+            }
+        }
+
+        async function startNewConversation() {
+            if (!selectedWorkspaceId) {
+                alert("Please select a workspace first.");
+                return;
+            }
+            const res = await apiRequest('POST', `/api/v1/workspaces/${selectedWorkspaceId}/conversations/`, {
+                title: "New Conversation"
+            }, true);
+
+            if (res.status === 201 && res.data.success) {
+                const conv = res.data.conversation;
+                activeConversationId = conv.id;
+                document.getElementById('activeConvTitle').textContent = conv.title;
+                document.getElementById('activeConvMsgCount').textContent = '0 messages';
+                document.getElementById('chatMessagesContainer').innerHTML = `
+                    <div style="text-align: center; color: var(--accent-cyan); font-size: 0.85rem; padding: 20px;">
+                        ✨ Started a new conversation thread. Type your question below!
+                    </div>
+                `;
+            }
+        }
+
+        async function loadConversation(convId) {
+            const res = await apiRequest('GET', `/api/v1/conversations/${convId}/`, null, true);
+            if (res.status === 200 && res.data.success) {
+                const conv = res.data.conversation;
+                document.getElementById('activeConvTitle').textContent = conv.title || 'Untitled Chat';
+                const messages = conv.messages || [];
+                document.getElementById('activeConvMsgCount').textContent = `${messages.length} messages`;
+
+                const container = document.getElementById('chatMessagesContainer');
+                if (messages.length === 0) {
+                    container.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 40px;">No messages in this thread yet.</div>`;
+                    return;
+                }
+
+                container.innerHTML = messages.map(m => renderMessageBubble(m.role, m.content, m.sources || [], m.latency_ms)).join('');
+                container.scrollTop = container.scrollHeight;
+            }
+        }
+
+        function renderMessageBubble(role, content, sources = [], latencyMs = 0) {
+            const isUser = role === 'user';
+            let citationBadgesHtml = '';
+            if (!isUser && sources && sources.length > 0) {
+                citationBadgesHtml = `
+                    <div style="margin-top: 8px; pt-2; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 6px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center;">
+                        <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: 600;">SOURCES:</span>
+                        ${sources.map(s => `
+                            <span onclick='showCitationDetail(${JSON.stringify(s).replace(/'/g, "&apos;")})' style="background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.35); color: #c7d2fe; font-size: 0.72rem; padding: 2px 6px; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" title="Click to inspect source chunk">
+                                📎 [${s.citation_index}] ${escapeHtml(s.document_title)} (${Math.round(s.similarity_score * 100)}%)
+                            </span>
+                        `).join('')}
+                    </div>
+                `;
+            }
+
+            const latencyBadge = (!isUser && latencyMs > 0) ? `<span style="font-size: 0.7rem; color: var(--text-muted); float: right; margin-left: 8px;">${latencyMs}ms</span>` : '';
+
+            return `
+                <div style="display: flex; flex-direction: column; align-items: ${isUser ? 'flex-end' : 'flex-start'};">
+                    <div style="max-width: 88%; background: ${isUser ? 'linear-gradient(135deg, rgba(99, 102, 241, 0.3), rgba(168, 85, 247, 0.3))' : 'rgba(255,255,255,0.06)'}; border: 1px solid ${isUser ? 'rgba(168, 85, 247, 0.4)' : 'rgba(255,255,255,0.1)'}; border-radius: 10px; padding: 10px 14px; font-size: 0.85rem; line-height: 1.5; color: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">
+                        <div style="font-size: 0.72rem; font-weight: 600; color: ${isUser ? '#c084fc' : 'var(--accent-cyan)'}; margin-bottom: 4px;">
+                            ${isUser ? '👤 You' : '🤖 KnowFlow AI'} ${latencyBadge}
+                        </div>
+                        <div style="white-space: pre-wrap;" class="bubble-content">${escapeHtml(content)}</div>
+                        ${citationBadgesHtml}
+                    </div>
+                </div>
+            `;
+        }
+
+        async function sendChatMessage() {
+            if (!selectedWorkspaceId) {
+                alert("Please select a workspace first.");
+                return;
+            }
+            const input = document.getElementById('chatInputText');
+            const query = input.value.trim();
+            if (!query) return;
+
+            const sendBtn = document.getElementById('sendChatBtn');
+            const statusText = document.getElementById('chatStatusText');
+            const container = document.getElementById('chatMessagesContainer');
+            const isStream = document.getElementById('streamToggle').checked;
+
+            // 1. Auto-create conversation if none active
+            if (!activeConversationId) {
+                statusText.textContent = "Creating thread...";
+                const convRes = await apiRequest('POST', `/api/v1/workspaces/${selectedWorkspaceId}/conversations/`, {
+                    title: query.slice(0, 40)
+                }, true);
+                if (convRes.status === 201 && convRes.data.success) {
+                    activeConversationId = convRes.data.conversation.id;
+                    document.getElementById('activeConvTitle').textContent = convRes.data.conversation.title;
+                    container.innerHTML = '';
+                } else {
+                    alert("Failed to create conversation: " + (convRes.data.error?.message || "Server error"));
+                    return;
+                }
+            }
+
+            // Append User Bubble
+            container.innerHTML += renderMessageBubble('user', query);
+            input.value = '';
+            container.scrollTop = container.scrollHeight;
+
+            sendBtn.disabled = true;
+            statusText.textContent = isStream ? "Streaming from LLM..." : "Thinking...";
+
+            // 2. Execute RAG
+            if (isStream) {
+                // Server-Sent Events (SSE) Streaming
+                const assistantBubbleId = `msg-stream-${Date.now()}`;
+                const assistantBubbleHtml = `
+                    <div style="display: flex; flex-direction: column; align-items: flex-start;" id="${assistantBubbleId}-wrapper">
+                        <div style="max-width: 88%; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 10px 14px; font-size: 0.85rem; line-height: 1.5; color: #fff;">
+                            <div style="font-size: 0.72rem; font-weight: 600; color: var(--accent-cyan); margin-bottom: 4px;">
+                                🤖 KnowFlow AI <span id="${assistantBubbleId}-latency" style="font-size: 0.7rem; color: var(--text-muted); float: right;">generating...</span>
+                            </div>
+                            <div id="${assistantBubbleId}" style="white-space: pre-wrap;"><span class="stream-cursor" style="display: inline-block; width: 6px; height: 12px; background: var(--accent-cyan); vertical-align: middle; animation: blink 1s infinite;"></span></div>
+                            <div id="${assistantBubbleId}-citations"></div>
+                        </div>
+                    </div>
+                `;
+                container.innerHTML += assistantBubbleHtml;
+                container.scrollTop = container.scrollHeight;
+
+                const textElem = document.getElementById(assistantBubbleId);
+                const citationElem = document.getElementById(`${assistantBubbleId}-citations`);
+                const latencyElem = document.getElementById(`${assistantBubbleId}-latency`);
+                let accumulatedText = "";
+
+                try {
+                    const response = await fetch(`/api/v1/conversations/${activeConversationId}/messages/`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${tokens.access}`,
+                            'Content-Type': 'application/json',
+                            'Accept': 'text/event-stream'
+                        },
+                        body: JSON.stringify({ content: query, stream: true })
+                    });
+
+                    if (!response.ok) {
+                        const errData = await response.json();
+                        textElem.innerHTML = `<span style="color: #ef4444;">Error: ${escapeHtml(errData.error?.message || response.statusText)}</span>`;
+                        statusText.textContent = "Error";
+                        sendBtn.disabled = false;
+                        return;
+                    }
+
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder('utf-8');
+                    let buffer = "";
+
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+
+                        buffer += decoder.decode(value, { stream: true });
+                        const lines = buffer.split("\n\n");
+                        buffer = lines.pop(); // Keep incomplete chunk
+
+                        for (const block of lines) {
+                            if (!block.trim()) continue;
+                            const eventMatch = block.match(/event:\s*([a-zA-Z0-9_-]+)/);
+                            const dataMatch = block.match(/data:\s*(.*)/s);
+
+                            const eventType = eventMatch ? eventMatch[1] : "message";
+                            const rawData = dataMatch ? dataMatch[1].trim() : "";
+
+                            if (eventType === "token") {
+                                try {
+                                    const parsed = JSON.parse(rawData);
+                                    accumulatedText += parsed.delta || "";
+                                    textElem.textContent = accumulatedText;
+                                    container.scrollTop = container.scrollHeight;
+                                } catch (e) {}
+                            } else if (eventType === "citations") {
+                                try {
+                                    const citations = JSON.parse(rawData);
+                                    if (citations && citations.length > 0) {
+                                        citationElem.innerHTML = `
+                                            <div style="margin-top: 8px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.1); display: flex; flex-wrap: wrap; gap: 6px; align-items: center;">
+                                                <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: 600;">SOURCES:</span>
+                                                ${citations.map(s => `
+                                                    <span onclick='showCitationDetail(${JSON.stringify(s).replace(/'/g, "&apos;")})' style="background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.35); color: #c7d2fe; font-size: 0.72rem; padding: 2px 6px; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" title="Click to inspect source chunk">
+                                                        📎 [${s.citation_index}] ${escapeHtml(s.document_title)} (${Math.round(s.similarity_score * 100)}%)
+                                                    </span>
+                                                `).join('')}
+                                            </div>
+                                        `;
+                                    }
+                                } catch (e) {}
+                            } else if (eventType === "done") {
+                                try {
+                                    const doneMeta = JSON.parse(rawData);
+                                    if (doneMeta.latency_ms) {
+                                        latencyElem.textContent = `${doneMeta.latency_ms}ms`;
+                                    }
+                                } catch (e) {}
+                            }
+                        }
+                    }
+
+                    statusText.textContent = "Complete";
+                } catch (err) {
+                    textElem.innerHTML += `<br><span style="color: #ef4444;">[Stream connection dropped: ${escapeHtml(err.message)}]</span>`;
+                    statusText.textContent = "Disconnected";
+                }
+            } else {
+                // Non-streaming standard JSON response
+                const res = await apiRequest('POST', `/api/v1/conversations/${activeConversationId}/messages/`, {
+                    content: query,
+                    stream: false
+                }, true);
+
+                if (res.status === 201 && res.data.success) {
+                    const msg = res.data.message;
+                    container.innerHTML += renderMessageBubble('assistant', msg.content, msg.sources || [], msg.latency_ms);
+                    container.scrollTop = container.scrollHeight;
+                    statusText.textContent = `Completed (${msg.latency_ms || 0}ms)`;
+                } else {
+                    container.innerHTML += `
+                        <div style="color: #ef4444; font-size: 0.85rem; padding: 8px;">
+                            Error: ${escapeHtml(res.data.error?.message || "Failed to generate answer.")}
+                        </div>
+                    `;
+                    statusText.textContent = "Failed";
+                }
+            }
+
+            sendBtn.disabled = false;
+        }
+
+        function showCitationDetail(source) {
+            document.getElementById('chunkModalTitle').textContent = `Source [${source.citation_index}]: ${source.document_title}`;
+            document.getElementById('chunkModalList').innerHTML = `
+                <div style="background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 16px; display: flex; flex-direction: column; gap: 10px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 0.85rem;">
+                        <div>
+                            <strong>Document:</strong> ${escapeHtml(source.document_title)}<br>
+                            <strong>Section:</strong> ${escapeHtml(source.section_header || 'General')}<br>
+                            ${source.page_number ? `<strong>Page:</strong> ${source.page_number}<br>` : ''}
+                            ${source.original_filename ? `<strong>File:</strong> ${escapeHtml(source.original_filename)}<br>` : ''}
+                        </div>
+                        <div>
+                            <span style="background: rgba(167, 139, 250, 0.2); color: #a78bfa; border: 1px solid rgba(167, 139, 250, 0.4); padding: 4px 8px; border-radius: 4px; font-weight: 600; font-size: 0.8rem;">
+                                ${Math.round(source.similarity_score * 100)}% Cosine Similarity
+                            </span>
+                        </div>
+                    </div>
+                    <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;">
+                        <label style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">EXTRACTED CHUNK SNIPPET:</label>
+                        <div style="background: rgba(0,0,0,0.3); border-left: 3px solid var(--accent-cyan); padding: 10px; border-radius: 4px; font-size: 0.85rem; line-height: 1.45; margin-top: 4px; color: #f1f5f9;">
+                            ${escapeHtml(source.snippet || '(No preview snippet available)')}
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.getElementById('chunkModal').style.display = 'flex';
         }
 
         function closeChunkModal() {

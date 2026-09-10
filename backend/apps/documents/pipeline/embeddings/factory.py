@@ -9,6 +9,7 @@ from apps.documents.pipeline.embeddings.base import BaseEmbeddingProvider
 from apps.documents.pipeline.embeddings.openai_provider import OpenAIEmbeddingProvider
 from apps.documents.pipeline.embeddings.gemini_provider import GeminiEmbeddingProvider
 from apps.documents.pipeline.embeddings.mock_provider import MockEmbeddingProvider
+from apps.documents.pipeline.embeddings.local_provider import LocalFastEmbedProvider
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +62,15 @@ class EmbeddingProviderFactory:
                 model_name=gemini_model,
                 dimensions=selected_dimensions,
             )
+        elif selected_provider in ["local", "fastembed"]:
+            local_model = selected_model
+            if local_model in ["text-embedding-004", "text-embedding-3-small", "gemini-embedding-001", ""]:
+                local_model = "BAAI/bge-small-en-v1.5"
+            local_dims = selected_dimensions if selected_dimensions != 1536 else 384
+            provider = LocalFastEmbedProvider(
+                model_name=local_model,
+                dimensions=local_dims,
+            )
         elif selected_provider == "mock":
             provider = MockEmbeddingProvider(
                 model_name=selected_model,
@@ -69,7 +79,7 @@ class EmbeddingProviderFactory:
         else:
             raise ValueError(
                 f"Unsupported embedding provider: '{selected_provider}'. "
-                f"Supported providers are 'openai', 'gemini', 'mock'."
+                f"Supported providers are 'openai', 'gemini', 'local', 'mock'."
             )
 
         cls._instances[cache_key] = provider

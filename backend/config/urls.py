@@ -73,4 +73,5 @@ urlpatterns = [
     path('health/', health_check, name='health-check'),
     path('api/v1/auth/', include('apps.accounts.urls', namespace='auth')),
     path('api/v1/workspaces/', include('apps.workspaces.urls', namespace='workspaces')),
+    path('api/v1/', include('apps.chat.urls', namespace='chat')),
 ]

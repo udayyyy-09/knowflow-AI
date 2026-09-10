@@ -39,3 +39,9 @@ EMBEDDING_PROVIDER = 'mock'
 EMBEDDING_MODEL_NAME = 'mock-embedding-v1'
 EMBEDDING_DIMENSIONS = 1536
 
+# Mock LLM provider for fast offline deterministic testing
+LLM_PROVIDER = 'mock'
+LLM_MODEL_NAME = 'mock-llm-v1'
+LANGFUSE_PUBLIC_KEY = ''
+LANGFUSE_SECRET_KEY = ''
+

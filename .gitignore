@@ -57,3 +57,6 @@ celerybeat.pid
 
 # Docker
 docker-compose.override.yml
+
+
+.agents/

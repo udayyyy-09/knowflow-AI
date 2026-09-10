@@ -20,6 +20,7 @@ from apps.documents.models import Document, DocumentVersion, DocumentChunk, Embe
 from apps.documents.pipeline.embeddings.mock_provider import MockEmbeddingProvider
 from apps.documents.pipeline.embeddings.openai_provider import OpenAIEmbeddingProvider
 from apps.documents.pipeline.embeddings.gemini_provider import GeminiEmbeddingProvider
+from apps.documents.pipeline.embeddings.local_provider import LocalFastEmbedProvider
 from apps.documents.pipeline.embeddings.factory import EmbeddingProviderFactory
 from apps.documents.services.embedding_service import EmbeddingService
 from apps.documents.services.vector_search import VectorSearchService
@@ -124,6 +125,22 @@ class TestEmbeddingProviders:
         with pytest.raises(RuntimeError, match=r"Gemini Embeddings API error \[500\]"):
             provider.embed_text("Gemini query")
 
+    def test_local_fastembed_provider(self):
+        provider = LocalFastEmbedProvider(model_name="BAAI/bge-small-en-v1.5", dimensions=384)
+        assert provider.get_dimensions() == 384
+        assert provider.get_model_name() == "BAAI/bge-small-en-v1.5"
+
+        vec = provider.embed_text("Employee benefits and vacation policy.")
+        assert len(vec) == 384
+
+        # Verify unit normalization ||v|| = 1.0
+        norm = math.sqrt(sum(x * x for x in vec))
+        assert pytest.approx(norm, 1e-3) == 1.0
+
+        batch_vecs = provider.embed_batch(["Query one", "Query two"])
+        assert len(batch_vecs) == 2
+        assert len(batch_vecs[0]) == 384
+        assert len(batch_vecs[1]) == 384
 
     def test_embedding_provider_factory(self):
         EmbeddingProviderFactory.clear_cache()
@@ -134,6 +151,14 @@ class TestEmbeddingProviders:
         # Cached singleton verification
         cached_p = EmbeddingProviderFactory.get_provider(provider_name="mock", dimensions=256)
         assert mock_p is cached_p
+
+        # Local provider verification
+        local_p = EmbeddingProviderFactory.get_provider(provider_name="local")
+        assert isinstance(local_p, LocalFastEmbedProvider)
+        assert local_p.get_dimensions() == 384
+
+        fastembed_p = EmbeddingProviderFactory.get_provider(provider_name="fastembed")
+        assert isinstance(fastembed_p, LocalFastEmbedProvider)
 
         with pytest.raises(ValueError, match="Unsupported embedding provider"):
             EmbeddingProviderFactory.get_provider(provider_name="unknown_provider")

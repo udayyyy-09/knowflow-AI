@@ -4,7 +4,7 @@ Performs multi-tenant semantic retrieval across document chunk embeddings using 
 """
 import logging
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any
 from django.db import connection
 from pgvector.django import CosineDistance
@@ -24,15 +24,16 @@ class SearchResult:
     chunk_id: str
     chunk_index: int
     content: str
-    page_number: Optional[int]
-    section_header: str
-    metadata: Dict[str, Any]
-    document_id: str
-    document_title: str
-    version_id: str
-    version_number: int
-    similarity_score: float
-    cosine_distance: float
+    page_number: Optional[int] = None
+    section_header: str = ""
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    document_id: str = ""
+    document_title: str = ""
+    original_filename: str = ""
+    version_id: str = ""
+    version_number: int = 1
+    similarity_score: float = 0.0
+    cosine_distance: float = 1.0
 
 
 class VectorSearchService:
