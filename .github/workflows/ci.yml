@@ -1,20 +1,25 @@
-name: KnowFlow AI — Backend CI
+name: KnowFlow AI — Pull Request CI
 
 on:
-  push:
-    branches: [ main, develop ]
-    paths:
-      - 'backend/**'
-      - '.github/workflows/ci.yml'
   pull_request:
-    branches: [ main ]
+    branches:
+      - main
+      - develop
     paths:
       - 'backend/**'
+      - 'frontend/**'
       - '.github/workflows/ci.yml'
 
+concurrency:
+  group: pr-ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  test:
-    name: Run Pytest Suite & Coverage
+  # ---------------------------------------------------------------------------
+  # Backend Testing & Coverage
+  # ---------------------------------------------------------------------------
+  backend-ci:
+    name: Backend Pytest Suite & Coverage
     runs-on: ubuntu-latest
 
     services:
@@ -47,7 +52,38 @@ jobs:
       - name: Run Test Suite with Pytest
         env:
           DJANGO_SETTINGS_MODULE: config.settings.test
-          DJANGO_SECRET_KEY: ci-test-secret-key-123456789
+          DJANGO_SECRET_KEY: pr-ci-secret-key-123456789
+          REDIS_URL: redis://localhost:6379/0
+          CELERY_BROKER_URL: redis://localhost:6379/0
+          CELERY_RESULT_BACKEND: redis://localhost:6379/0
         run: |
           cd backend
           pytest --cov=apps --cov-report=term-missing
+
+  # ---------------------------------------------------------------------------
+  # Frontend TypeScript Verification & Build
+  # ---------------------------------------------------------------------------
+  frontend-ci:
+    name: Frontend TypeCheck & Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: 'frontend/package-lock.json'
+
+      - name: Install Dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Run TypeScript Check & Production Build
+        run: |
+          cd frontend
+          npm run build
