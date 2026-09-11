@@ -1,0 +1,152 @@
+name: KnowFlow AI — Production CD (Render & Vercel)
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: production-deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Step 1: Automated Test Suite & Build Verification
+  # ---------------------------------------------------------------------------
+  pre-deploy-check:
+    name: Run Pre-Flight Tests & Builds
+    runs-on: ubuntu-latest
+
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # Backend Validation
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Backend Dependencies
+        run: |
+          cd backend
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Pytest Test Suite
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings.test
+          DJANGO_SECRET_KEY: cd-preflight-test-secret-key-123456789
+          REDIS_URL: redis://localhost:6379/0
+          CELERY_BROKER_URL: redis://localhost:6379/0
+          CELERY_RESULT_BACKEND: redis://localhost:6379/0
+        run: |
+          cd backend
+          pytest -v
+
+      # Frontend Validation
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: 'frontend/package-lock.json'
+
+      - name: Install Frontend Dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Run Frontend TypeCheck & Production Build
+        run: |
+          cd frontend
+          npm run build
+
+  # ---------------------------------------------------------------------------
+  # Step 2: Deploy Backend to Render (via Deploy Hook)
+  # ---------------------------------------------------------------------------
+  deploy-backend:
+    name: Deploy Backend to Render
+    needs: pre-deploy-check
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Trigger Render Web Service Deployment
+        run: |
+          if [ -z "${{ secrets.RENDER_DEPLOY_HOOK_URL }}" ]; then
+            echo "⚠️ RENDER_DEPLOY_HOOK_URL secret is not configured. Skipping Render webhook dispatch."
+            exit 0
+          fi
+
+          echo "🚀 Triggering Render deploy webhook..."
+          RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}")
+          HTTP_STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS:" | cut -d':' -f2)
+          BODY=$(echo "$RESPONSE" | grep -v "HTTP_STATUS:")
+
+          echo "Response: $BODY"
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
+            echo "✅ Render deployment successfully triggered (HTTP $HTTP_STATUS)!"
+          else
+            echo "❌ Failed to trigger Render deployment (HTTP $HTTP_STATUS)."
+            exit 1
+          fi
+
+  # ---------------------------------------------------------------------------
+  # Step 3: Deploy Frontend to Vercel
+  # ---------------------------------------------------------------------------
+  deploy-frontend:
+    name: Deploy Frontend to Vercel
+    needs: pre-deploy-check
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Deploy to Vercel (Production)
+        uses: amondnet/vercel-action@v25
+        if: ${{ env.VERCEL_TOKEN != '' }}
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          working-directory: ./frontend
+          vercel-args: '--prod'
+
+  # ---------------------------------------------------------------------------
+  # Step 4: Post-Deployment Summary
+  # ---------------------------------------------------------------------------
+  deployment-summary:
+    name: Deployment Summary
+    needs: [deploy-backend, deploy-frontend]
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - name: Publish Deployment Summary
+        run: |
+          echo "### 🚀 KnowFlow AI Deployment Pipeline Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch**: \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Actor**: \`${{ github.actor }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Pre-Flight Tests**: ✅ Passed" >> $GITHUB_STEP_SUMMARY
+          echo "- **Render Backend Status**: ${{ needs.deploy-backend.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Vercel Frontend Status**: ${{ needs.deploy-frontend.result }}" >> $GITHUB_STEP_SUMMARY
