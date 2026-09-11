@@ -18,7 +18,7 @@ export const MacbookSection: React.FC = () => {
             <Badge className="h-10 w-10 -rotate-12 transform hover:rotate-0 transition-transform shadow-md" />
           </a>
         }
-        src="https://assets.aceternity.com/demos/tailwindmasterkit.webp"
+        src="/maclogo.png"
         showGradient={false}
       />
     </section>

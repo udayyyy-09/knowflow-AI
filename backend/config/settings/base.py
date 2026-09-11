@@ -274,6 +274,7 @@ GEMINI_API_KEY = env('GEMINI_API_KEY', default='')
 # -----------------------------------------------------------------------------
 # Langfuse Prompt Management & Observability
 # -----------------------------------------------------------------------------
+USE_LOCAL_PROMPTS = env.bool('USE_LOCAL_PROMPTS', default=False)  # True = local prompts.py, False = Langfuse CMS
 LANGFUSE_PUBLIC_KEY = env('LANGFUSE_PUBLIC_KEY', default='')
 LANGFUSE_SECRET_KEY = env('LANGFUSE_SECRET_KEY', default='')
 LANGFUSE_HOST = env('LANGFUSE_HOST', default=env('LANGFUSE_BASE_URL', default='https://cloud.langfuse.com'))
@@ -283,7 +284,7 @@ LANGFUSE_PROMPT_CACHE_TTL_SECONDS = env.int('LANGFUSE_PROMPT_CACHE_TTL_SECONDS',
 # LLM Generation & RAG Configuration
 # -----------------------------------------------------------------------------
 LLM_PROVIDER = env('LLM_PROVIDER', default='gemini')  # 'gemini', 'openai', 'mock'
-LLM_MODEL_NAME = env('LLM_MODEL_NAME', default='gemini-3.1-flash-lite')
+LLM_MODEL_NAME = env('LLM_MODEL_NAME', default='gemini-3.6-flash')
 LLM_TEMPERATURE = env.float('LLM_TEMPERATURE', default=0.2)
 LLM_MAX_TOKENS = env.int('LLM_MAX_TOKENS', default=1024)
 LLM_TIMEOUT_SECONDS = env.int('LLM_TIMEOUT_SECONDS', default=45)
@@ -297,4 +298,16 @@ RAG_MAX_MESSAGES_PER_CONVERSATION = env.int('RAG_MAX_MESSAGES_PER_CONVERSATION',
 # Rate Limiting (Requests per minute)
 RAG_USER_RATE_LIMIT = env.int('RAG_USER_RATE_LIMIT', default=10)
 RAG_WORKSPACE_RATE_LIMIT = env.int('RAG_WORKSPACE_RATE_LIMIT', default=60)
+
+# -----------------------------------------------------------------------------
+# Frontend URL & Email Delivery Configuration
+# -----------------------------------------------------------------------------
+FRONTEND_URL = env('FRONTEND_URL', default='http://localhost:5173')
+EMAIL_BACKEND = env('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')
+DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='KnowFlow AI <noreply@knowflow.ai>')
+EMAIL_HOST = env('EMAIL_HOST', default='smtp.gmail.com')
+EMAIL_PORT = env.int('EMAIL_PORT', default=587)
+EMAIL_USE_TLS = env.bool('EMAIL_USE_TLS', default=True)
+EMAIL_HOST_USER = env('EMAIL_HOST_USER', default='')
+EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default='')
 

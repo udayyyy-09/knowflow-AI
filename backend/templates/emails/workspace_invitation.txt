@@ -1,0 +1,11 @@
+You're invited to join {{ workspace_name }} on KnowFlow AI!
+
+{{ inviter_name }} ({{ inviter_email }}) has invited you to collaborate in the "{{ workspace_name }}" knowledge workspace as a {{ role }}.
+
+To accept this invitation and access the knowledge base, click the link below:
+{{ invite_url }}
+
+This secure invitation expires on {{ expires_at_formatted }}.
+
+--
+KnowFlow AI — Enterprise Grounded Intelligence

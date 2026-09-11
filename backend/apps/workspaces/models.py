@@ -125,3 +125,106 @@ class WorkspaceMembership(BaseModel):
 
     def __str__(self):
         return f"{self.user.email} - {self.workspace.name} ({self.role})"
+
+
+class InvitationStatus(models.TextChoices):
+    PENDING = 'PENDING', _('Pending')
+    ACCEPTED = 'ACCEPTED', _('Accepted')
+    EXPIRED = 'EXPIRED', _('Expired')
+    CANCELLED = 'CANCELLED', _('Cancelled')
+
+
+import secrets
+from django.utils import timezone
+from datetime import timedelta
+
+
+def generate_invitation_token():
+    return secrets.token_urlsafe(32)
+
+
+def default_invitation_expiry():
+    return timezone.now() + timedelta(days=7)
+
+
+class WorkspaceInvitation(BaseModel):
+    """
+    Cryptographically secure workspace invitation for onboarding team members via email.
+    """
+    workspace = models.ForeignKey(
+        Workspace,
+        on_delete=models.CASCADE,
+        related_name='invitations',
+        help_text=_('The workspace the recipient is invited to join.')
+    )
+    email = models.EmailField(
+        _('recipient email'),
+        db_index=True,
+        help_text=_('Email address of the invited colleague or teammate.')
+    )
+    role = models.CharField(
+        _('assigned role'),
+        max_length=20,
+        choices=WorkspaceRole.choices,
+        default=WorkspaceRole.EMPLOYEE,
+        help_text=_('The RBAC role granted upon accepting this invitation.')
+    )
+    invited_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='sent_workspace_invitations',
+        help_text=_('The workspace Admin who generated this invitation.')
+    )
+    token = models.CharField(
+        _('invitation token'),
+        max_length=64,
+        unique=True,
+        default=generate_invitation_token,
+        db_index=True,
+        help_text=_('Secure 64-character URL token for one-time verification.')
+    )
+    status = models.CharField(
+        _('status'),
+        max_length=20,
+        choices=InvitationStatus.choices,
+        default=InvitationStatus.PENDING,
+        db_index=True
+    )
+    expires_at = models.DateTimeField(
+        _('expires at'),
+        default=default_invitation_expiry,
+        help_text=_('Expiration timestamp (defaults to 7 days from creation).')
+    )
+    accepted_at = models.DateTimeField(
+        _('accepted at'),
+        null=True,
+        blank=True
+    )
+    accepted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='accepted_workspace_invitations',
+        help_text=_('User account that redeemed the invitation token.')
+    )
+
+    class Meta:
+        verbose_name = _('workspace invitation')
+        verbose_name_plural = _('workspace invitations')
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['workspace', 'status']),
+            models.Index(fields=['email', 'status']),
+            models.Index(fields=['token', 'status']),
+        ]
+
+    def __str__(self):
+        return f"Invite: {self.email} -> {self.workspace.name} ({self.role}) [{self.status}]"
+
+    @property
+    def is_valid(self) -> bool:
+        """Check if invitation is still pending and not expired."""
+        if self.status != InvitationStatus.PENDING:
+            return False
+        return timezone.now() < self.expires_at

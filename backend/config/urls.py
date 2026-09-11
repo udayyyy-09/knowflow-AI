@@ -67,11 +67,18 @@ def test_playground(request):
     )
 
 
+from apps.workspaces.views import (
+    PublicInvitationDetailView,
+    AcceptInvitationView,
+)
+
 urlpatterns = [
     path('', test_playground, name='test-playground'),
     path('admin/', admin.site.urls),
     path('health/', health_check, name='health-check'),
     path('api/v1/auth/', include('apps.accounts.urls', namespace='auth')),
     path('api/v1/workspaces/', include('apps.workspaces.urls', namespace='workspaces')),
+    path('api/v1/invitations/<str:token>/', PublicInvitationDetailView.as_view(), name='public-invitation-detail'),
+    path('api/v1/invitations/<str:token>/accept/', AcceptInvitationView.as_view(), name='accept-invitation'),
     path('api/v1/', include('apps.chat.urls', namespace='chat')),
 ]

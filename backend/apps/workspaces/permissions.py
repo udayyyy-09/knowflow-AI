@@ -7,7 +7,38 @@ Guarantees strict tenant isolation and enforces permission tiers:
 - EMPLOYEE: Read / query / conversation access.
 """
 from rest_framework import permissions
+from typing import Optional
 from apps.workspaces.models import Workspace, WorkspaceMembership, WorkspaceRole
+from apps.common.cache import CacheService
+
+
+def get_user_workspace_role(user, workspace_id: Optional[str]) -> Optional[str]:
+    """
+    Retrieves the user's role in the given workspace, utilizing Redis caching
+    to avoid redundant database queries on repeated permission checks.
+    """
+    if not user or not user.is_authenticated or not workspace_id:
+        return None
+
+    user_id_str = str(user.id)
+    ws_id_str = str(workspace_id)
+
+    # 1. Check Redis role cache
+    cached_role = CacheService.get_user_workspace_role(user_id_str, ws_id_str)
+    if cached_role is not None:
+        return None if cached_role == "__NONE__" else cached_role
+
+    # 2. Query DB
+    membership = WorkspaceMembership.objects.filter(
+        workspace_id=ws_id_str,
+        user=user,
+        workspace__is_active=True,
+    ).values_list('role', flat=True).first()
+
+    # 3. Cache result
+    role_to_cache = membership if membership is not None else "__NONE__"
+    CacheService.set_user_workspace_role(user_id_str, ws_id_str, role_to_cache)
+    return membership
 
 
 class IsWorkspaceMember(permissions.BasePermission):
@@ -24,11 +55,8 @@ class IsWorkspaceMember(permissions.BasePermission):
         if not workspace_id:
             return True  # For list views, filtering is handled by queryset
 
-        return WorkspaceMembership.objects.filter(
-            workspace_id=workspace_id,
-            user=request.user,
-            workspace__is_active=True
-        ).exists()
+        role = get_user_workspace_role(request.user, str(workspace_id))
+        return role is not None
 
     def has_object_permission(self, request, view, obj):
         if not (request.user and request.user.is_authenticated):
@@ -40,11 +68,8 @@ class IsWorkspaceMember(permissions.BasePermission):
         if not workspace:
             return False
 
-        return WorkspaceMembership.objects.filter(
-            workspace=workspace,
-            user=request.user,
-            workspace__is_active=True
-        ).exists()
+        role = get_user_workspace_role(request.user, str(workspace.id))
+        return role is not None
 
 
 class IsWorkspaceAdmin(permissions.BasePermission):
@@ -61,12 +86,8 @@ class IsWorkspaceAdmin(permissions.BasePermission):
         if not workspace_id:
             return True
 
-        return WorkspaceMembership.objects.filter(
-            workspace_id=workspace_id,
-            user=request.user,
-            role=WorkspaceRole.ADMIN,
-            workspace__is_active=True
-        ).exists()
+        role = get_user_workspace_role(request.user, str(workspace_id))
+        return role == WorkspaceRole.ADMIN
 
     def has_object_permission(self, request, view, obj):
         if not (request.user and request.user.is_authenticated):
@@ -78,12 +99,8 @@ class IsWorkspaceAdmin(permissions.BasePermission):
         if not workspace:
             return False
 
-        return WorkspaceMembership.objects.filter(
-            workspace=workspace,
-            user=request.user,
-            role=WorkspaceRole.ADMIN,
-            workspace__is_active=True
-        ).exists()
+        role = get_user_workspace_role(request.user, str(workspace.id))
+        return role == WorkspaceRole.ADMIN
 
 
 class IsWorkspaceManagerOrAdmin(permissions.BasePermission):
@@ -101,12 +118,8 @@ class IsWorkspaceManagerOrAdmin(permissions.BasePermission):
         if not workspace_id:
             return True
 
-        return WorkspaceMembership.objects.filter(
-            workspace_id=workspace_id,
-            user=request.user,
-            role__in=[WorkspaceRole.ADMIN, WorkspaceRole.MANAGER],
-            workspace__is_active=True
-        ).exists()
+        role = get_user_workspace_role(request.user, str(workspace_id))
+        return role in [WorkspaceRole.ADMIN, WorkspaceRole.MANAGER]
 
     def has_object_permission(self, request, view, obj):
         if not (request.user and request.user.is_authenticated):

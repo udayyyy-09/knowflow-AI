@@ -78,7 +78,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
           disabled={disabled || isStreaming}
-          placeholder="Ask anything grounded in your workspace documents... (Enter to send, Shift+Enter for new line)"
+          placeholder="Ask anything grounded in your workspace documents..."
           className="w-full bg-transparent text-sm text-[#1B1F27] placeholder-[#8C93A0] px-3 py-1.5 focus:outline-none resize-none max-h-44 disabled:opacity-50 font-normal"
         />
 

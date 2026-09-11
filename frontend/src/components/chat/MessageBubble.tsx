@@ -8,8 +8,6 @@ import {
   User as UserIcon, 
   Copy, 
   Check, 
-  Sparkles, 
-  Clock, 
   Layers
 } from 'lucide-react';
 import { Spinner } from '@/components/common/Spinner';
@@ -220,7 +218,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-3 px-1 mt-1.5 text-[11px] text-[#5B6270] font-mono">
+        {/* <div className="flex items-center gap-3 px-1 mt-1.5 text-[11px] text-[#5B6270] font-mono">
           {message.latency_ms && (
             <span className="flex items-center gap-1 text-[#2E6F5E] font-semibold">
               <Clock className="w-3 h-3" />
@@ -240,7 +238,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               • {message.model_name}
             </span>
           )}
-        </div>
+        </div> */}
       </div>
     </div>
   );

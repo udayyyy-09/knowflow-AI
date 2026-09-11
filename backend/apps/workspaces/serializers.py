@@ -6,7 +6,13 @@ from rest_framework import serializers
 
 from apps.accounts.models import User
 from apps.accounts.serializers import UserProfileSerializer
-from apps.workspaces.models import Workspace, WorkspaceMembership, WorkspaceRole
+from apps.workspaces.models import (
+    Workspace,
+    WorkspaceMembership,
+    WorkspaceRole,
+    WorkspaceInvitation,
+    InvitationStatus,
+)
 
 
 class WorkspaceMembershipSerializer(serializers.ModelSerializer):
@@ -144,3 +150,84 @@ class WorkspaceMemberUpdateSerializer(serializers.ModelSerializer):
                 )
 
         return attrs
+
+
+class WorkspaceInvitationSerializer(serializers.ModelSerializer):
+    """
+    Serializer for displaying workspace invitations in the workspace management roster.
+    """
+    invited_by_email = serializers.EmailField(source='invited_by.email', read_only=True)
+    invited_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = WorkspaceInvitation
+        fields = (
+            'id',
+            'workspace_id',
+            'email',
+            'role',
+            'status',
+            'invited_by_email',
+            'invited_by_name',
+            'token',
+            'expires_at',
+            'created_at',
+            'accepted_at',
+        )
+        read_only_fields = (
+            'id',
+            'workspace_id',
+            'status',
+            'invited_by_email',
+            'invited_by_name',
+            'token',
+            'expires_at',
+            'created_at',
+            'accepted_at',
+        )
+
+    def get_invited_by_name(self, obj):
+        return obj.invited_by.get_full_name() or obj.invited_by.email
+
+
+class WorkspaceInvitationCreateSerializer(serializers.Serializer):
+    """
+    Serializer for creating a new cryptographically signed email invitation.
+    """
+    email = serializers.EmailField(required=True)
+    role = serializers.ChoiceField(
+        choices=WorkspaceRole.choices,
+        default=WorkspaceRole.EMPLOYEE
+    )
+
+    def validate_email(self, value):
+        normalized = value.lower().strip()
+        workspace = self.context['workspace']
+
+        # Check if user is already a member of this workspace
+        existing_member = WorkspaceMembership.objects.filter(
+            workspace=workspace,
+            user__email__iexact=normalized
+        ).exists()
+        if existing_member:
+            raise serializers.ValidationError(
+                f"User with email '{value}' is already an active member of this workspace."
+            )
+
+        return normalized
+
+
+class WorkspaceInvitationPublicSerializer(serializers.Serializer):
+    """
+    Public serializer for previewing invitation details before accepting.
+    """
+    token = serializers.CharField()
+    workspace_name = serializers.CharField()
+    workspace_description = serializers.CharField(allow_blank=True)
+    inviter_name = serializers.CharField()
+    inviter_email = serializers.CharField()
+    role = serializers.CharField()
+    email = serializers.EmailField()
+    expires_at = serializers.DateTimeField()
+    is_valid = serializers.BooleanField()
+

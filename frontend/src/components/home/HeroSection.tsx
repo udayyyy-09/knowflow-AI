@@ -253,14 +253,65 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
           margin-right: 6px;
         }
 
-        @media (max-width: 900px) {
+        @media (max-width: 1024px) {
           .kf-hero {
             grid-template-columns: 1fr;
-            padding: 56px 6vw 64px;
-            gap: 48px;
+            padding: 48px 5vw 64px;
+            gap: 40px;
           }
           .kf-left { max-width: 100%; }
-          .kf-right { justify-content: flex-start; }
+          .kf-right { justify-content: center; width: 100%; }
+          .kf-card { max-width: 520px; }
+        }
+
+        @media (max-width: 640px) {
+          .kf-hero {
+            padding: 32px 4vw 48px;
+            gap: 32px;
+          }
+          .kf-brand { margin-bottom: 24px; font-size: 14px; }
+          .kf-headline {
+            font-size: clamp(26px, 7.5vw, 36px);
+            line-height: 1.15;
+            padding-left: 12px;
+            border-left-width: 3px;
+            margin-bottom: 16px;
+          }
+          .kf-sub {
+            font-size: 14px;
+            line-height: 1.55;
+            margin-bottom: 24px;
+          }
+          .kf-ctas {
+            flex-direction: column;
+            gap: 10px;
+            width: 100%;
+            margin-bottom: 20px;
+          }
+          .kf-btn {
+            width: 100%;
+            text-align: center;
+            padding: 12px 20px;
+            font-size: 14px;
+          }
+          .kf-trust {
+            font-size: 12px;
+            line-height: 1.45;
+          }
+          .kf-card {
+            max-width: 100%;
+            border-radius: 8px;
+          }
+          .kf-bubble-user {
+            font-size: 13px;
+            max-width: 90%;
+          }
+          .kf-bubble-answer {
+            font-size: 13.5px;
+          }
+          .kf-source-row {
+            font-size: 11.5px;
+          }
         }
 
         @media (prefers-reduced-motion: reduce) {
@@ -290,9 +341,10 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
           <button
             type="button"
             className="kf-btn kf-btn-primary"
+            style={{ color: "#FFFFFF" }}
             onClick={onGetStarted}
           >
-            Request a demo
+            Get Started
           </button>
           <button
             type="button"

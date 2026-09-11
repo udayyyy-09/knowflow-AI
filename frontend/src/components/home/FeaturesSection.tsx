@@ -1,5 +1,5 @@
 import React from 'react';
-import { Gauge, FileText, Cpu, Shield, Search, Lock } from 'lucide-react';
+import { Gauge, Cpu, Shield, Search, Lock, KeyRound } from 'lucide-react';
 import { PointerHighlight } from "@/components/ui/pointer-highlight";
 
 export const FeaturesSection: React.FC = () => {
@@ -12,18 +12,18 @@ export const FeaturesSection: React.FC = () => {
       badge: 'Cost Protection',
     },
     {
-      icon: <FileText className="w-5 h-5 text-[#2E6F5E]" />,
-      title: 'Multi-Format Async Ingestion',
+      icon: <KeyRound className="w-5 h-5 text-[#2E6F5E]" />,
+      title: 'Cryptographic Team Invitations',
       description:
-        'Upload PDF, DOCX, Markdown, and TXT files. Asynchronous Celery workers handle text extraction, recursive chunking, and SHA-256 deduplication.',
-      badge: 'Celery Pipelines',
+        'Invite colleagues securely via 64-character URL-safe cryptographic tokens with 7-day auto-expiry, atomic single-use redemption, and instant RBAC onboarding.',
+      badge: 'Signed Tokens',
     },
     {
       icon: <Cpu className="w-5 h-5 text-[#2E6F5E]" />,
-      title: 'Langfuse Prompt Governance',
+      title: 'Langfuse Prompt Governance & Caching',
       description:
-        'Production prompts managed in Langfuse with live versioning, TTL caching, and an infallible local static fallback for 100% uptime.',
-      badge: 'Prompt CMS',
+        'Production prompts managed in Langfuse with live versioning, 600s Redis TTL caching, and an infallible local static fallback for 100% zero-downtime uptime.',
+      badge: 'TTL Caching & CMS',
     },
     {
       icon: <Search className="w-5 h-5 text-[#A9772F]" />,
@@ -43,7 +43,7 @@ export const FeaturesSection: React.FC = () => {
       icon: <Lock className="w-5 h-5 text-[#2E6F5E]" />,
       title: 'Workspace Isolation & RBAC',
       description:
-        'Role-Based Access Control (Admin, Manager, Employee) enforces document privacy. Redis token-bucket rate limiters protect against budget exhaustion.',
+        'Multi-tenant PostgreSQL schema isolation ensures team data never crosses workspace borders. Role-Based Access Control assigns Admin, Manager, and Employee permissions.',
       badge: 'Access Control',
     },
   ];

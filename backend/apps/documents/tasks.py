@@ -66,6 +66,10 @@ def reembed_document_version(self, version_id: str):
 
         embedding_service = EmbeddingService()
         embeddings = embedding_service.generate_embeddings_for_chunks(chunks)
+        
+        from apps.common.cache import CacheService
+        CacheService.bump_knowledge_version(str(version.document.workspace_id))
+        
         return {
             "version_id": str(version_id),
             "embeddings_count": len(embeddings),
@@ -106,6 +110,9 @@ def reembed_workspace(self, workspace_id: str):
             if chunks:
                 embs = embedding_service.generate_embeddings_for_chunks(chunks)
                 total_embedded += len(embs)
+
+        from apps.common.cache import CacheService
+        CacheService.bump_knowledge_version(str(workspace_id))
 
         return {
             "workspace_id": str(workspace_id),

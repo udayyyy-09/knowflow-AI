@@ -27,6 +27,7 @@ export const DocumentsView: React.FC = () => {
   // Delete confirm state
   const [docToDelete, setDocToDelete] = useState<Document | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const fetchDocuments = useCallback(async (showLoading = true) => {
     if (!activeWorkspace || !activeWorkspace.id) return;
@@ -41,14 +42,28 @@ export const DocumentsView: React.FC = () => {
     }
   }, [activeWorkspace]);
 
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await fetchDocuments(false);
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 400);
+    }
+  };
+
   useEffect(() => {
     fetchDocuments(true);
   }, [fetchDocuments]);
 
-  // Polling when any document is in PROCESSING or PENDING state
+  // Polling when any document is in in-flight states
   useEffect(() => {
     const hasPendingOrProcessing = documents.some(
-      (d) => d.status === 'PENDING' || d.status === 'PROCESSING'
+      (d) =>
+        d.status === 'PENDING' ||
+        d.status === 'PROCESSING' ||
+        d.status === 'QUEUED' ||
+        d.status === 'UPLOADED' ||
+        d.status === 'EMBEDDING'
     );
 
     if (!hasPendingOrProcessing) return;
@@ -59,16 +74,6 @@ export const DocumentsView: React.FC = () => {
 
     return () => clearInterval(interval);
   }, [documents, fetchDocuments]);
-
-  const handleReprocess = async (doc: Document) => {
-    if (!activeWorkspace || !activeWorkspace.id) return;
-    try {
-      await documentsApi.reprocess(activeWorkspace.id, doc.id);
-      await fetchDocuments(false);
-    } catch (err) {
-      console.error('Failed to trigger reprocess:', err);
-    }
-  };
 
   const handleDeleteConfirm = async () => {
     if (!activeWorkspace || !activeWorkspace.id || !docToDelete) return;
@@ -86,10 +91,12 @@ export const DocumentsView: React.FC = () => {
 
   // Stats calculation
   const totalChunks = documents.reduce((acc, doc) => acc + (doc.chunks_count ?? doc.chunk_count ?? 0), 0);
-  const processedDocs = documents.filter((d) => d.status === 'PROCESSED' || d.status === 'COMPLETED').length;
+  const processedDocs = documents.filter(
+    (d) => d.status === 'READY' || d.status === 'PROCESSED' || d.status === 'COMPLETED'
+  ).length;
 
   return (
-    <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-8 max-w-7xl mx-auto w-full bg-[#F6F5F0]">
+    <div className="flex-1 overflow-y-auto p-3.5 sm:p-6 md:p-8 space-y-6 sm:space-y-8 max-w-7xl mx-auto w-full bg-[#F6F5F0]">
       {/* Top Banner & Stats */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -105,10 +112,13 @@ export const DocumentsView: React.FC = () => {
           <Button
             variant="outline"
             size="md"
-            onClick={() => fetchDocuments(false)}
-            title="Refresh documents list"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="flex items-center border-[#DDD9CC] bg-white hover:bg-[#F6F5F0] text-[#1B1F27] text-xs sm:text-sm font-medium shadow-xs"
+            title="Refresh document processing status"
           >
-            <RefreshCw className="w-4 h-4" />
+            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-[#2E6F5E]' : 'text-[#5B6270]'}`} />
+            <span></span>
           </Button>
           <Button
             variant="primary"
@@ -154,13 +164,12 @@ export const DocumentsView: React.FC = () => {
         </div>
       </div>
 
-      {/* Main Document List */}
+      {/* Document List with Search & Filtering */}
       <DocumentList
         documents={documents}
         loading={loading}
         onInspectChunks={(doc) => setSelectedDocForChunks(doc)}
         onDelete={(doc) => setDocToDelete(doc)}
-        onReprocess={handleReprocess}
         onOpenUpload={() => setIsUploadOpen(true)}
       />
 

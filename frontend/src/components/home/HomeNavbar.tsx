@@ -2,7 +2,19 @@ import React, { useState } from 'react';
 import { HoveredLink, Menu, MenuItem, ProductItem } from '@/components/ui/navbar-menu';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
-import { ArrowRight, LogIn, Sparkles, ShieldCheck, Database, Cpu, FileText, Zap, Activity } from 'lucide-react';
+import { 
+  ArrowRight, 
+  LogIn, 
+  Sparkles, 
+  ShieldCheck, 
+  Database, 
+  Cpu, 
+  FileText, 
+  Zap, 
+  Activity,
+  Menu as MenuIcon,
+  X
+} from 'lucide-react';
 
 interface HomeNavbarProps {
   onOpenAuth: (mode: 'login' | 'register') => void;
@@ -10,26 +22,26 @@ interface HomeNavbarProps {
 }
 
 export const HomeNavbar: React.FC<HomeNavbarProps> = ({ onOpenAuth, onEnterApp }) => {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated } = useAuth();
   const [active, setActive] = useState<string | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
-    <div className="sticky top-4 z-50 w-full px-4 sm:px-6">
+    <div className="sticky top-3 sm:top-4 z-50 w-full px-3 sm:px-6">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         {/* Left: Brand Logo */}
         <a
           href="#"
-          className="flex items-center gap-2.5 font-bold text-base tracking-tight text-[#1B1F27] shrink-0 bg-white/90 backdrop-blur-md px-3.5 py-2 rounded-full border border-[#DDD9CC] shadow-sm hover:border-[#1B1F27] transition-all"
+          className="flex items-center gap-2 font-bold text-sm sm:text-base tracking-tight text-[#1B1F27] shrink-0 bg-white/90 backdrop-blur-md px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-full border border-[#DDD9CC] shadow-sm hover:border-[#1B1F27] transition-all"
         >
           <div className="w-5 h-5 rounded bg-[#1B1F27] flex items-center justify-center text-white text-xs font-serif font-black">
             K
           </div>
-          <span className="font-semibold text-sm">KnowFlow</span>
-          
+          <span className="font-semibold text-xs sm:text-sm">KnowFlow</span>
         </a>
 
-        {/* Center: Aceternity Interactive Navbar Menu */}
-        <div className={cn('hidden md:block relative z-50')}>
+        {/* Center: Aceternity Interactive Navbar Menu (Desktop & Large Tablets) */}
+        <div className={cn('hidden lg:block relative z-50')}>
           <Menu setActive={setActive}>
             {/* 1. Solutions (Business & Operational Impact) */}
             <MenuItem setActive={setActive} active={active} item="Solutions">
@@ -64,7 +76,7 @@ export const HomeNavbar: React.FC<HomeNavbarProps> = ({ onOpenAuth, onEnterApp }
                   </div>
                 </HoveredLink>
 
-                <HoveredLink href="#security">
+                <HoveredLink href="#team-privacy">
                   <div className="flex items-center gap-2 font-semibold text-[#1B1F27]">
                     <ShieldCheck className="w-4 h-4 text-[#1B1F27]" />
                     <span>Team Privacy & Access</span>
@@ -163,14 +175,14 @@ export const HomeNavbar: React.FC<HomeNavbarProps> = ({ onOpenAuth, onEnterApp }
           </Menu>
         </div>
 
-        {/* Right: Auth Action Buttons */}
-        <div className="flex items-center gap-2.5 shrink-0">
+        {/* Right: Auth Action Buttons & Mobile Hamburger */}
+        <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
           {isAuthenticated ? (
             <button
               onClick={onEnterApp}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#1B1F27] text-[#F6F5F0] text-xs font-semibold hover:bg-[#2E6F5E] transition-colors shadow-sm cursor-pointer"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-full bg-[#1B1F27] text-[#F6F5F0] text-xs font-semibold hover:bg-[#2E6F5E] transition-colors shadow-sm cursor-pointer"
             >
-              <span>Workspace ({user?.first_name || 'Dashboard'})</span>
+              <span>Workspace</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
           ) : (
@@ -184,16 +196,90 @@ export const HomeNavbar: React.FC<HomeNavbarProps> = ({ onOpenAuth, onEnterApp }
               </button>
               <button
                 onClick={() => onOpenAuth('register')}
-                className="px-4 py-2 rounded-full bg-[#1B1F27] text-[#F6F5F0] text-xs font-semibold hover:bg-[#2E6F5E] transition-colors shadow-sm cursor-pointer"
+                className="px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-full bg-[#1B1F27] text-[#F6F5F0] text-xs font-semibold hover:bg-[#2E6F5E] transition-colors shadow-sm cursor-pointer"
               >
                 Get Started
               </button>
             </>
           )}
+
+          {/* Mobile Menu Hamburger Button */}
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="lg:hidden p-2 rounded-full bg-white/90 backdrop-blur-md border border-[#DDD9CC] text-[#1B1F27] hover:bg-[#ECE9DF] transition cursor-pointer"
+            aria-label="Toggle navigation menu"
+          >
+            {mobileMenuOpen ? <X className="w-4 h-4" /> : <MenuIcon className="w-4 h-4" />}
+          </button>
         </div>
       </div>
+
+      {/* Mobile Navigation Dropdown Menu */}
+      {mobileMenuOpen && (
+        <div className="lg:hidden mt-2 p-4 bg-white/95 backdrop-blur-xl rounded-2xl border border-[#DDD9CC] shadow-xl space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="grid grid-cols-1 gap-1 text-xs font-semibold text-[#1B1F27]">
+            <a
+              href="#features"
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center gap-2.5 p-2.5 rounded-xl hover:bg-[#ECE9DF] transition"
+            >
+              <Database className="w-4 h-4 text-[#2E6F5E]" />
+              <span>Features & Architecture</span>
+            </a>
+            <a
+              href="#flow-visualization"
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center gap-2.5 p-2.5 rounded-xl hover:bg-[#ECE9DF] transition"
+            >
+              <Activity className="w-4 h-4 text-[#2E6F5E]" />
+              <span>Interactive RAG Trace</span>
+            </a>
+            <a
+              href="#how-it-works"
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center gap-2.5 p-2.5 rounded-xl hover:bg-[#ECE9DF] transition"
+            >
+              <FileText className="w-4 h-4 text-[#2E6F5E]" />
+              <span>3-Step Workflow</span>
+            </a>
+            <a
+              href="#security"
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center gap-2.5 p-2.5 rounded-xl hover:bg-[#ECE9DF] transition"
+            >
+              <ShieldCheck className="w-4 h-4 text-[#A9772F]" />
+              <span>Security & Guardrails</span>
+            </a>
+          </div>
+
+          {!isAuthenticated && (
+            <div className="pt-2 border-t border-[#DDD9CC] grid grid-cols-2 gap-2">
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  onOpenAuth('login');
+                }}
+                className="w-full py-2 rounded-xl bg-[#ECE9DF] text-[#1B1F27] text-xs font-semibold flex items-center justify-center gap-1.5"
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                <span>Sign In</span>
+              </button>
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  onOpenAuth('register');
+                }}
+                className="w-full py-2 rounded-xl bg-[#1B1F27] text-white text-xs font-semibold flex items-center justify-center"
+              >
+                <span>Get Started</span>
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };
 
 export default HomeNavbar;
+

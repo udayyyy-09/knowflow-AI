@@ -6,7 +6,9 @@ import {
   Sparkles, 
   ShieldCheck, 
   Layers, 
-  Lock
+  Lock,
+  MessageSquare,
+  Plus
 } from 'lucide-react';
 
 interface ChatWindowProps {
@@ -17,6 +19,8 @@ interface ChatWindowProps {
   onCitationClick: (sourceId: number, citation?: CitationSource) => void;
   workspaceName: string;
   suggestions?: string[];
+  onToggleHistory?: () => void;
+  onNewChat?: () => void;
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({
@@ -27,6 +31,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   onCitationClick,
   workspaceName,
   suggestions = [],
+  onToggleHistory,
+  onNewChat,
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -40,8 +46,29 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
   return (
     <div className="flex-1 flex flex-col h-full bg-[#F6F5F0] overflow-hidden relative text-[#1B1F27]">
+      {/* Mobile-Only Top Action Bar */}
+      <div className="md:hidden flex items-center justify-between px-3.5 py-2 border-b border-[#DDD9CC] bg-[#FDFCFA] text-xs font-semibold">
+        <button
+          onClick={onToggleHistory}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#ECE9DF] text-[#1B1F27] hover:bg-[#DDD9CC] transition"
+        >
+          <MessageSquare className="w-3.5 h-3.5 text-[#2E6F5E]" />
+          <span>Chat History</span>
+        </button>
+
+        {onNewChat && (
+          <button
+            onClick={onNewChat}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#1B1F27] text-white hover:bg-[#2E6F5E] transition text-[11px]"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>New Chat</span>
+          </button>
+        )}
+      </div>
+
       {/* Messages Container */}
-      <div className="flex-1 overflow-y-auto p-4 md:p-6">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6">
         {messages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center max-w-xl mx-auto text-center px-4 py-8 space-y-6">
             <div className="w-14 h-14 rounded-2xl bg-[#1B1F27] flex items-center justify-center text-[#F6F5F0] shadow-sm">

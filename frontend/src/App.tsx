@@ -17,16 +17,72 @@ import { Button } from '@/components/common/Button';
 const MainLayout: React.FC = () => {
   const { isAuthenticated, loading: authLoading, openAuthModal } = useAuth();
   const { workspaces, loading: workspaceLoading, setActiveWorkspaceId } = useWorkspace();
-  const [currentTab, setCurrentTab] = useState<'chat' | 'documents' | 'members'>('chat');
-  const [showLanding, setShowLanding] = useState(false);
+
+  const getInitialTab = (): 'chat' | 'documents' | 'members' => {
+    const hash = window.location.hash.toLowerCase();
+    if (hash.includes('documents')) return 'documents';
+    if (hash.includes('members') || hash.includes('team')) return 'members';
+    if (hash.includes('chat')) return 'chat';
+
+    const saved = localStorage.getItem('knowflow_active_tab');
+    if (saved === 'documents' || saved === 'members' || saved === 'chat') {
+      return saved;
+    }
+    return 'chat';
+  };
+
+  const getInitialShowLanding = (): boolean => {
+    const hash = window.location.hash.toLowerCase();
+    if (
+      hash.includes('home') ||
+      hash.includes('landing') ||
+      hash.includes('features') ||
+      hash.includes('how-it-works') ||
+      hash.includes('security')
+    ) {
+      return true;
+    }
+    if (hash.includes('chat') || hash.includes('documents') || hash.includes('members')) {
+      return false;
+    }
+    const saved = localStorage.getItem('knowflow_view');
+    if (saved === 'landing') return true;
+    if (saved === 'app') return false;
+    // Default to true (landing page) for unauthenticated or first-time visits
+    return false;
+  };
+
+  const [currentTab, setCurrentTab] = useState<'chat' | 'documents' | 'members'>(getInitialTab);
+  const [showLanding, setShowLanding] = useState<boolean>(getInitialShowLanding);
   const [isCreateWorkspaceOpen, setIsCreateWorkspaceOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [inviteToken, setInviteToken] = useState<string | null>(null);
 
-  // Check URL hash and query string for invite token
+  const handleSelectTab = (tab: 'chat' | 'documents' | 'members') => {
+    setCurrentTab(tab);
+    setShowLanding(false);
+    localStorage.setItem('knowflow_active_tab', tab);
+    localStorage.setItem('knowflow_view', 'app');
+    window.location.hash = tab;
+  };
+
+  const handleNavigateLanding = () => {
+    setShowLanding(true);
+    localStorage.setItem('knowflow_view', 'landing');
+    window.location.hash = 'home';
+  };
+
+  const handleEnterApp = () => {
+    setShowLanding(false);
+    localStorage.setItem('knowflow_view', 'app');
+    window.location.hash = currentTab;
+  };
+
+  // Sync with URL hash and query string
   useEffect(() => {
-    const parseInviteToken = () => {
-      // Check hash #invite=<token>
+    const parseUrlState = () => {
+      // 1. Check invite token
       const hash = window.location.hash;
       const hashMatch = hash.match(/#invite=([a-zA-Z0-9_-]+)/);
       if (hashMatch) {
@@ -34,17 +90,50 @@ const MainLayout: React.FC = () => {
         return;
       }
 
-      // Check search param ?invite=<token> or ?token=<token>
       const searchParams = new URLSearchParams(window.location.search);
       const tokenParam = searchParams.get('invite') || searchParams.get('token');
       if (tokenParam) {
         setInviteToken(tokenParam);
+        return;
+      }
+      setInviteToken(null);
+
+      // 2. Check tab / landing navigation in hash
+      const lowerHash = hash.toLowerCase();
+      if (
+        lowerHash.includes('home') ||
+        lowerHash.includes('landing') ||
+        lowerHash.includes('features') ||
+        lowerHash.includes('how-it-works') ||
+        lowerHash.includes('security')
+      ) {
+        setShowLanding(true);
+        localStorage.setItem('knowflow_view', 'landing');
+      } else if (lowerHash.includes('documents')) {
+        setShowLanding(false);
+        setCurrentTab('documents');
+        localStorage.setItem('knowflow_view', 'app');
+        localStorage.setItem('knowflow_active_tab', 'documents');
+      } else if (lowerHash.includes('members') || lowerHash.includes('team')) {
+        setShowLanding(false);
+        setCurrentTab('members');
+        localStorage.setItem('knowflow_view', 'app');
+        localStorage.setItem('knowflow_active_tab', 'members');
+      } else if (lowerHash.includes('chat')) {
+        setShowLanding(false);
+        setCurrentTab('chat');
+        localStorage.setItem('knowflow_view', 'app');
+        localStorage.setItem('knowflow_active_tab', 'chat');
       }
     };
 
-    parseInviteToken();
-    window.addEventListener('hashchange', parseInviteToken);
-    return () => window.removeEventListener('hashchange', parseInviteToken);
+    parseUrlState();
+    window.addEventListener('hashchange', parseUrlState);
+    window.addEventListener('popstate', parseUrlState);
+    return () => {
+      window.removeEventListener('hashchange', parseUrlState);
+      window.removeEventListener('popstate', parseUrlState);
+    };
   }, []);
 
   // Handle invitation view
@@ -57,15 +146,17 @@ const MainLayout: React.FC = () => {
             window.location.hash = '';
             setInviteToken(null);
             setShowLanding(false);
+            localStorage.setItem('knowflow_view', 'app');
             if (wsId) {
               setActiveWorkspaceId(wsId);
             }
           }}
           onOpenAuth={(mode) => openAuthModal(mode)}
           onGoHome={() => {
-            window.location.hash = '';
+            window.location.hash = 'home';
             setInviteToken(null);
             setShowLanding(true);
+            localStorage.setItem('knowflow_view', 'landing');
           }}
         />
         <LoginModal />
@@ -90,7 +181,7 @@ const MainLayout: React.FC = () => {
   if (!isAuthenticated || showLanding) {
     return (
       <div className="min-h-screen bg-[#F6F5F0] text-[#1B1F27]">
-        <HomePage onEnterApp={() => setShowLanding(false)} />
+        <HomePage onEnterApp={handleEnterApp} />
         <LoginModal />
       </div>
     );
@@ -144,17 +235,20 @@ const MainLayout: React.FC = () => {
       {/* Navigation Sidebar */}
       <AppSidebar
         currentTab={currentTab}
-        onSelectTab={setCurrentTab}
+        onSelectTab={handleSelectTab}
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+        isMobileOpen={isMobileSidebarOpen}
+        onCloseMobile={() => setIsMobileSidebarOpen(false)}
       />
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden bg-[#F6F5F0]">
         <AppHeader
           currentTab={currentTab}
-          onNavigateLanding={() => setShowLanding(true)}
+          onNavigateLanding={handleNavigateLanding}
           onOpenCreateWorkspace={() => setIsCreateWorkspaceOpen(true)}
+          onOpenMobileMenu={() => setIsMobileSidebarOpen(true)}
         />
 
         <main className="flex-1 flex overflow-hidden bg-[#F6F5F0]">

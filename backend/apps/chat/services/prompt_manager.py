@@ -3,6 +3,7 @@ Prompt Management Service.
 Primary: Fetches dynamic prompt templates from Langfuse Prompt CMS (with TTL caching).
 Fallback: Seamlessly falls back to apps.chat.prompts static definitions if Langfuse is unavailable.
 """
+import hashlib
 import logging
 from typing import Tuple, Dict, Any, Optional
 from django.conf import settings
@@ -30,10 +31,18 @@ class PromptManager:
     _langfuse_client = None
 
     @classmethod
+    def _is_local_prompts_enabled(cls) -> bool:
+        """Returns True if local prompt template override is enabled in settings."""
+        return getattr(settings, "USE_LOCAL_PROMPTS", False)
+
+    @classmethod
     def _get_langfuse_client(cls):
         """
-        Initializes the Langfuse client if credentials are configured.
+        Initializes the Langfuse client if credentials are configured and USE_LOCAL_PROMPTS is False.
         """
+        if cls._is_local_prompts_enabled():
+            return None
+
         if cls._langfuse_client is None:
             pub_key = getattr(settings, "LANGFUSE_PUBLIC_KEY", "")
             sec_key = getattr(settings, "LANGFUSE_SECRET_KEY", "")
@@ -57,10 +66,13 @@ class PromptManager:
     def get_system_prompt(cls) -> str:
         """
         Retrieves the RAG system prompt.
-        1. Checks cache.
-        2. Tries Langfuse 'rag-system-prompt' (label='production').
-        3. Falls back to DEFAULT_SYSTEM_PROMPT.
+        - If USE_LOCAL_PROMPTS=True: immediately returns static DEFAULT_SYSTEM_PROMPT.
+        - Otherwise: Checks cache -> queries Langfuse CMS ('rag-system-prompt' / 'rag-pipeline-prompt') -> falls back to local.
         """
+        if cls._is_local_prompts_enabled():
+            logger.debug("USE_LOCAL_PROMPTS=True: Using static local system prompt from apps.chat.prompts.")
+            return DEFAULT_SYSTEM_PROMPT
+
         cache_key = f"{cls.CACHE_KEY_PREFIX}system"
         cached = cache.get(cache_key)
         if cached:
@@ -117,10 +129,17 @@ class PromptManager:
     ) -> str:
         """
         Compiles the user context prompt with substituted variables.
-        1. Tries Langfuse 'rag-user-prompt'.
-        2. Tries Langfuse 'rag-pipeline-prompt' (extracting the user message).
-        3. Falls back to DEFAULT_USER_CONTEXT_PROMPT.
+        - If USE_LOCAL_PROMPTS=True: immediately formats and returns DEFAULT_USER_CONTEXT_PROMPT.
+        - Otherwise: Tries Langfuse CMS ('rag-user-prompt' / 'rag-pipeline-prompt') -> falls back to local.
         """
+        if cls._is_local_prompts_enabled():
+            logger.debug("USE_LOCAL_PROMPTS=True: Using static local user prompt template.")
+            template = DEFAULT_USER_CONTEXT_PROMPT
+            compiled = template.replace("{{context}}", context)
+            compiled = compiled.replace("{{question}}", question)
+            compiled = compiled.replace("{{history}}", history if history else "")
+            return compiled
+
         client = cls._get_langfuse_client()
         if client:
             # 1. Try dedicated 'rag-user-prompt'
@@ -194,7 +213,19 @@ class PromptManager:
         return formatted
 
     @classmethod
+    def get_prompt_version_hash(cls) -> str:
+        """
+        Returns a deterministic 8-character hash representing the active system and user prompts.
+        Used as a dimension in the RAG answer cache key to guarantee instant cache invalidation
+        whenever prompt templates are modified or redeployed.
+        """
+        sys_prompt = cls.get_system_prompt()
+        signature = f"{sys_prompt}||{DEFAULT_USER_CONTEXT_PROMPT}||{SOURCE_CHUNK_TEMPLATE}"
+        return hashlib.sha256(signature.encode("utf-8")).hexdigest()[:8]
+
+    @classmethod
     def clear_cache(cls):
         """Clears cached prompts (useful during tests or prompt redeployment)."""
         cache.delete(f"{cls.CACHE_KEY_PREFIX}system")
         cache.delete(f"{cls.CACHE_KEY_PREFIX}user")
+

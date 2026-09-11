@@ -6,6 +6,7 @@ import { FeaturesSection } from '@/components/home/FeaturesSection';
 import { HowItWorksSection } from '@/components/home/HowItWorksSection';
 import { FlowVisualizationSection } from '@/components/home/FlowVisualizationSection';
 import { SecuritySection } from '@/components/home/SecuritySection';
+// import { TeamPrivacySection } from '@/components/home/TeamPrivacySection';
 import { CTASection } from '@/components/home/CTASection';
 import { HomeFooter } from '@/components/home/HomeFooter';
 import { useAuth } from '@/context/AuthContext';
@@ -15,14 +16,22 @@ interface HomePageProps {
 }
 
 export const HomePage: React.FC<HomePageProps> = ({ onEnterApp }) => {
-  const { openAuthModal } = useAuth();
+  const { openAuthModal, isAuthenticated } = useAuth();
 
   const handleGetStarted = () => {
-    openAuthModal('register');
+    if (isAuthenticated && onEnterApp) {
+      onEnterApp();
+    } else {
+      openAuthModal('register');
+    }
   };
 
   const handleOpenLogin = (mode: 'login' | 'register' = 'login') => {
-    openAuthModal(mode);
+    if (isAuthenticated && onEnterApp) {
+      onEnterApp();
+    } else {
+      openAuthModal(mode);
+    }
   };
 
   return (
@@ -35,24 +44,25 @@ export const HomePage: React.FC<HomePageProps> = ({ onEnterApp }) => {
         {/* 1. Hero Section */}
         <HeroSection onGetStarted={handleGetStarted} onExploreDemo={handleGetStarted} />
 
-        {/* 2. Interactive Spotlight with LinkPreview */}
-        {/* <KnowledgeSpotlightSection /> */}
-
-        {/* 3. Macbook Scroll Showcase */}
+        {/* 2. Features Grid */}
         <FeaturesSection />
+
+        {/* 3. Interactive Flow Visualization */}
         <FlowVisualizationSection />
         
+        {/* 4. Macbook Scroll Showcase */}
         <MacbookSection />
 
-        {/* 4. How It Works 3-Step Flow */}
+        {/* 5. How It Works 3-Step Flow */}
         <HowItWorksSection />
 
-        {/* 5. Interactive Animated Visualization of Flow (Mermaid Architecture Diagram) */}
+        {/* 6. Team Privacy, Onboarding & Access Control */}
+        {/* <TeamPrivacySection /> */}
 
-        {/* 6. Security & Guardrails */}
+        {/* 7. Security & Guardrails */}
         <SecuritySection />
 
-        {/* 7. Final CTA Banner */}
+        {/* 8. Final CTA Banner */}
         <CTASection onGetStarted={handleGetStarted} />
       </main>
 

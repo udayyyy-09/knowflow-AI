@@ -25,6 +25,7 @@ export const ChatView: React.FC = () => {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loadingConversations, setLoadingConversations] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [isMobileConvSidebarOpen, setIsMobileConvSidebarOpen] = useState(false);
   
   // Citation Modal state
   const [selectedCitation, setSelectedCitation] = useState<{
@@ -308,6 +309,8 @@ export const ChatView: React.FC = () => {
         onNewConversation={handleNewConversation}
         onDeleteConversation={handleDeleteConversation}
         loading={loadingConversations}
+        isMobileOpen={isMobileConvSidebarOpen}
+        onCloseMobile={() => setIsMobileConvSidebarOpen(false)}
       />
 
       {/* Main Chat Area */}
@@ -319,6 +322,8 @@ export const ChatView: React.FC = () => {
         onCitationClick={handleCitationClick}
         workspaceName={activeWorkspace?.name || 'Workspace'}
         suggestions={dynamicSuggestions}
+        onToggleHistory={() => setIsMobileConvSidebarOpen(!isMobileConvSidebarOpen)}
+        onNewChat={handleNewConversation}
       />
 
       {/* Citation Slide-over / Modal */}

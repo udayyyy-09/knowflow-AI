@@ -16,6 +16,8 @@ interface ConversationSidebarProps {
   onNewConversation: () => void;
   onDeleteConversation: (id: string) => void;
   loading: boolean;
+  isMobileOpen?: boolean;
+  onCloseMobile?: () => void;
 }
 
 export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
@@ -25,6 +27,8 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
   onNewConversation,
   onDeleteConversation,
   loading,
+  isMobileOpen = false,
+  onCloseMobile,
 }) => {
   const [search, setSearch] = useState('');
 
@@ -32,13 +36,23 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
     c.title.toLowerCase().includes(search.toLowerCase())
   );
 
-  return (
-    <div className="w-72 border-r border-[#DDD9CC] bg-[#FDFCFA] flex flex-col h-full shrink-0 text-[#1B1F27]">
+  const handleSelect = (id: string) => {
+    onSelectConversation(id);
+    if (onCloseMobile) {
+      onCloseMobile();
+    }
+  };
+
+  const sidebarContent = (
+    <div className="flex flex-col h-full bg-[#FDFCFA] text-[#1B1F27]">
       {/* Top Header & New Chat Button */}
-      <div className="p-4 border-b border-[#DDD9CC] space-y-3">
+      <div className="p-3 sm:p-4 border-b border-[#DDD9CC] space-y-3">
         <Button
           variant="primary"
-          onClick={onNewConversation}
+          onClick={() => {
+            onNewConversation();
+            if (onCloseMobile) onCloseMobile();
+          }}
           className="w-full justify-center"
         >
           <Plus className="w-4 h-4 mr-2" />
@@ -75,7 +89,7 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
             return (
               <div
                 key={conv.id}
-                onClick={() => onSelectConversation(conv.id)}
+                onClick={() => handleSelect(conv.id)}
                 className={`group flex items-center justify-between p-2.5 rounded-xl cursor-pointer transition text-left relative ${
                   isActive
                     ? 'bg-white text-[#1B1F27] border border-[#DDD9CC] shadow-xs'
@@ -89,7 +103,7 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
                     }`}
                   />
                   <div className="min-w-0 flex-1">
-                    <div className={`text-xs font-semibold truncate ${isActive ? 'text-[#1B1F27]' : 'text-[#1B1F27]'}`}>
+                    <div className="text-xs font-semibold truncate text-[#1B1F27]">
                       {conv.title || 'Untitled Conversation'}
                     </div>
                     <div className="text-[10px] text-[#5B6270] truncate mt-0.5">
@@ -116,5 +130,31 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
         )}
       </div>
     </div>
+  );
+
+  return (
+    <>
+      {/* Desktop Sidebar */}
+      <div className="hidden md:flex w-72 border-r border-[#DDD9CC] bg-[#FDFCFA] flex-col h-full shrink-0">
+        {sidebarContent}
+      </div>
+
+      {/* Mobile Drawer */}
+      {isMobileOpen && (
+        <div className="fixed inset-0 z-50 md:hidden flex">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity animate-in fade-in"
+            onClick={onCloseMobile}
+            aria-hidden="true"
+          />
+
+          {/* Drawer Panel */}
+          <aside className="relative w-72 max-w-[80vw] bg-[#FDFCFA] border-r border-[#DDD9CC] shadow-2xl h-full flex flex-col justify-between z-10 animate-in slide-in-from-left duration-200">
+            {sidebarContent}
+          </aside>
+        </div>
+      )}
+    </>
   );
 };

@@ -136,6 +136,9 @@ class DocumentDetailView(generics.RetrieveUpdateDestroyAPIView):
         instance.status = DocumentStatus.ARCHIVED
         instance.save(update_fields=['is_active', 'status', 'updated_at'])
 
+        from apps.common.cache import CacheService
+        CacheService.bump_knowledge_version(str(instance.workspace_id))
+
         return Response({
             "success": True,
             "message": f"Document '{instance.title}' has been archived and removed from search index."

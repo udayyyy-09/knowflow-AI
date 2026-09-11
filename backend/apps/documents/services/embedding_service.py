@@ -10,6 +10,7 @@ from django.conf import settings
 from apps.documents.models import DocumentChunk, Embedding
 from apps.documents.pipeline.embeddings.factory import EmbeddingProviderFactory
 from apps.documents.pipeline.embeddings.base import BaseEmbeddingProvider
+from apps.common.cache import CacheService
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +87,7 @@ class EmbeddingService:
     def generate_query_embedding(self, query_text: str) -> List[float]:
         """
         Generates a normalized float vector for a search query string.
+        Utilizes Redis caching to prevent redundant provider API calls for identical queries.
 
         Args:
             query_text: User search/question query.
@@ -95,4 +97,29 @@ class EmbeddingService:
         """
         if not query_text or not query_text.strip():
             raise ValueError("Query text cannot be empty for embedding generation.")
-        return self.provider.embed_text(query_text.strip())
+
+        clean_query = query_text.strip()
+        provider_name = getattr(settings, "EMBEDDING_PROVIDER", "openai")
+        model_name = self.provider.get_model_name()
+
+        # 1. Check Redis cache
+        cached_vector = CacheService.get_query_embedding(
+            provider=provider_name,
+            model_name=model_name,
+            query_text=clean_query,
+        )
+        if cached_vector is not None:
+            return cached_vector
+
+        # 2. Generate from provider
+        vector = self.provider.embed_text(clean_query)
+
+        # 3. Cache in Redis
+        CacheService.set_query_embedding(
+            provider=provider_name,
+            model_name=model_name,
+            query_text=clean_query,
+            vector=vector,
+        )
+        return vector
+

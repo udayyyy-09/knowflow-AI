@@ -5,19 +5,22 @@ import { WorkspaceSwitcher } from '@/components/layout/WorkspaceSwitcher';
 import { Button } from '@/components/common/Button';
 import { 
   LogOut, 
-  ExternalLink
+  ExternalLink,
+  Menu as MenuIcon
 } from 'lucide-react';
 
 interface AppHeaderProps {
   currentTab: 'chat' | 'documents' | 'members';
   onNavigateLanding?: () => void;
   onOpenCreateWorkspace: () => void;
+  onOpenMobileMenu?: () => void;
 }
 
 export const AppHeader: React.FC<AppHeaderProps> = ({
   currentTab,
   onNavigateLanding,
   onOpenCreateWorkspace,
+  onOpenMobileMenu,
 }) => {
   const { user, logout } = useAuth();
   const { userRole } = useWorkspace();
@@ -39,9 +42,19 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   const initial = displayName ? displayName.charAt(0).toUpperCase() : user?.email?.charAt(0).toUpperCase() || 'U';
 
   return (
-    <header className="h-16 border-b border-[#DDD9CC] bg-[#FDFCFA]/90 backdrop-blur-md px-6 flex items-center justify-between sticky top-0 z-30 text-[#1B1F27]">
-      {/* Left section: Breadcrumb & Workspace Switcher */}
-      <div className="flex items-center gap-4">
+    <header className="h-16 border-b border-[#DDD9CC] bg-[#FDFCFA]/90 backdrop-blur-md px-3 sm:px-6 flex items-center justify-between sticky top-0 z-30 text-[#1B1F27]">
+      {/* Left section: Hamburger (mobile), Breadcrumb & Workspace Switcher */}
+      <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+        {onOpenMobileMenu && (
+          <button
+            onClick={onOpenMobileMenu}
+            className="md:hidden p-2 rounded-xl text-[#5B6270] hover:text-[#1B1F27] hover:bg-[#ECE9DF] transition-colors cursor-pointer shrink-0"
+            aria-label="Open navigation menu"
+          >
+            <MenuIcon className="w-5 h-5" />
+          </button>
+        )}
+
         <WorkspaceSwitcher onCreateWorkspaceClick={onOpenCreateWorkspace} />
 
         <div className="h-5 w-px bg-[#DDD9CC] hidden md:block" />

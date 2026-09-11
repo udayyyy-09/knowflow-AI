@@ -129,6 +129,10 @@ class DocumentIngestionService:
                 doc.status = DocumentStatus.READY
                 doc.save(update_fields=['status', 'updated_at'])
 
+            # 8. Invalidate RAG Answer Cache by bumping workspace knowledge version
+            from apps.common.cache import CacheService
+            CacheService.bump_knowledge_version(str(workspace.id))
+
             logger.info(
                 "Successfully processed and embedded DocumentVersion %s (%s). Created %d chunks with embeddings.",
                 version.id,

@@ -7,7 +7,6 @@ import {
   FileCode, 
   FileSpreadsheet, 
   Layers, 
-  RefreshCw, 
   Trash2, 
   Search, 
   Calendar, 
@@ -21,7 +20,6 @@ interface DocumentListProps {
   loading: boolean;
   onInspectChunks: (doc: Document) => void;
   onDelete: (doc: Document) => void;
-  onReprocess: (doc: Document) => void;
   onOpenUpload: () => void;
 }
 
@@ -30,12 +28,10 @@ export const DocumentList: React.FC<DocumentListProps> = ({
   loading,
   onInspectChunks,
   onDelete,
-  onReprocess,
   onOpenUpload,
 }) => {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
-  const [reprocessingId, setReprocessingId] = useState<string | null>(null);
 
   const getFileIcon = (fileType: string) => {
     switch (fileType?.toUpperCase()) {
@@ -56,19 +52,32 @@ export const DocumentList: React.FC<DocumentListProps> = ({
     const matchesSearch =
       doc.title.toLowerCase().includes(search.toLowerCase()) ||
       doc.file_type.toLowerCase().includes(search.toLowerCase());
-    const matchesStatus =
-      statusFilter === 'ALL' || doc.status === statusFilter;
+
+    const isProcessed =
+      doc.status === 'READY' ||
+      doc.status === 'PROCESSED' ||
+      doc.status === 'COMPLETED';
+
+    const isProcessing =
+      doc.status === 'PROCESSING' ||
+      doc.status === 'EMBEDDING' ||
+      doc.status === 'QUEUED' ||
+      doc.status === 'UPLOADED' ||
+      doc.status === 'PENDING';
+
+    const isFailed = doc.status === 'FAILED';
+
+    let matchesStatus = true;
+    if (statusFilter === 'PROCESSED') {
+      matchesStatus = isProcessed;
+    } else if (statusFilter === 'PROCESSING') {
+      matchesStatus = isProcessing;
+    } else if (statusFilter === 'FAILED') {
+      matchesStatus = isFailed;
+    }
+
     return matchesSearch && matchesStatus;
   });
-
-  const handleReprocessClick = async (doc: Document) => {
-    setReprocessingId(doc.id);
-    try {
-      await onReprocess(doc);
-    } finally {
-      setReprocessingId(null);
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -178,25 +187,10 @@ export const DocumentList: React.FC<DocumentListProps> = ({
                     variant="outline"
                     size="sm"
                     onClick={() => onInspectChunks(doc)}
-                    className="text-xs flex items-center gap-1.5 flex-1 justify-center"
+                    className="text-xs flex items-center gap-1.5 flex-1 justify-center border-[#DDD9CC] hover:bg-[#F6F5F0]"
                   >
                     <Layers className="w-3.5 h-3.5 text-[#2E6F5E]" />
                     Chunks ({count})
-                  </Button>
-
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleReprocessClick(doc)}
-                    disabled={reprocessingId === doc.id || doc.status === 'PROCESSING'}
-                    className="p-2 text-[#5B6270] hover:text-[#1B1F27]"
-                    title="Reprocess Document"
-                  >
-                    <RefreshCw
-                      className={`w-3.5 h-3.5 ${
-                        reprocessingId === doc.id ? 'animate-spin text-[#2E6F5E]' : ''
-                      }`}
-                    />
                   </Button>
 
                   <Button

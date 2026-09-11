@@ -10,6 +10,15 @@ DEBUG = False
 if not ALLOWED_HOSTS or ALLOWED_HOSTS == ['*']:
     raise ValueError("ALLOWED_HOSTS must be explicitly defined with valid domain names in production.")
 
+# WhiteNoise Static Asset Serving
+MIDDLEWARE = [
+    'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
+] + [m for m in MIDDLEWARE if m != 'django.middleware.security.SecurityMiddleware']  # noqa: F405
+
+STATIC_ROOT = BASE_DIR / 'staticfiles'  # noqa: F405
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
 # Security Hardening
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 SECURE_SSL_REDIRECT = env.bool('SECURE_SSL_REDIRECT', default=True)  # noqa: F405

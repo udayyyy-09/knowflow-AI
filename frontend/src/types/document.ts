@@ -1,4 +1,14 @@
-export type DocumentStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'PROCESSED' | 'FAILED' | 'ARCHIVED';
+export type DocumentStatus =
+  | 'UPLOADED'
+  | 'QUEUED'
+  | 'PENDING'
+  | 'PROCESSING'
+  | 'EMBEDDING'
+  | 'READY'
+  | 'PROCESSED'
+  | 'COMPLETED'
+  | 'FAILED'
+  | 'ARCHIVED';
 export type DocumentFileType = 'PDF' | 'DOCX' | 'TXT' | 'MARKDOWN' | 'MD' | 'CSV';
 
 export interface DocumentChunk {

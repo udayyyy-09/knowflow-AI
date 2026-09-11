@@ -2,7 +2,7 @@ import React from 'react';
 import { FloatingDock } from '@/components/ui/floating-dock';
 import {
   IconBrandGithub,
-  IconBrandX,
+  IconBrandLinkedin,
   IconExchange,
   IconHome,
   IconShieldLock,
@@ -45,16 +45,19 @@ export const HomeFooter: React.FC = () => {
       title: 'API & Docs',
       icon: <IconBook2 className="h-full w-full text-[#2E6F5E]" />,
       href: 'https://github.com/udayyyy-09/knowflow-AI#readme',
+      target: '_blank'
     },
     {
-      title: 'Twitter',
-      icon: <IconBrandX className="h-full w-full text-[#5B6270]" />,
-      href: 'https://x.com',
+      title: 'LinkedIn',
+      icon: <IconBrandLinkedin className="h-full w-full text-[#0A66C2]" />,
+      href: 'https://www.linkedin.com/in/uday-chaudhary-b24b08290/',
+      target: '_blank'
     },
     {
       title: 'GitHub',
       icon: <IconBrandGithub className="h-full w-full text-[#1B1F27]" />,
       href: 'https://github.com/udayyyy-09/knowflow-AI',
+      target: '_blank'
     },
   ];
 

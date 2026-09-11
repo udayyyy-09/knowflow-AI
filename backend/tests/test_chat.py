@@ -60,27 +60,37 @@ class TestPromptManager:
         assert "Test context" in compiled_user
         assert "What is the leave policy?" in compiled_user
 
-    def test_langfuse_prompt_fetch_success(self):
+    def test_use_local_prompts_true_bypasses_langfuse(self, settings):
+        settings.USE_LOCAL_PROMPTS = True
+        mock_client = MagicMock()
+
+        with patch.object(PromptManager, "_get_langfuse_client", return_value=mock_client):
+            PromptManager.clear_cache()
+            prompt = PromptManager.get_system_prompt()
+            assert "KnowFlow AI" in prompt
+            # Must NOT call Langfuse client when USE_LOCAL_PROMPTS is True
+            mock_client.get_prompt.assert_not_called()
+
+            compiled_user = PromptManager.compile_user_prompt(
+                context="<source>Local Context</source>",
+                question="Explain local mode",
+            )
+            assert "<context>" in compiled_user
+            assert "Local Context" in compiled_user
+            assert "Explain local mode" in compiled_user
+
+    def test_use_local_prompts_false_uses_langfuse(self, settings):
+        settings.USE_LOCAL_PROMPTS = False
         mock_client = MagicMock()
         mock_prompt = MagicMock()
-        mock_prompt.compile.return_value = "Langfuse System Prompt v2 [production]"
+        mock_prompt.compile.return_value = "Langfuse System Prompt Live CMS"
         mock_client.get_prompt.return_value = mock_prompt
 
         with patch.object(PromptManager, "_get_langfuse_client", return_value=mock_client):
             PromptManager.clear_cache()
             prompt = PromptManager.get_system_prompt()
-            assert prompt == "Langfuse System Prompt v2 [production]"
-            mock_client.get_prompt.assert_called_with("rag-system-prompt", label="production", cache_ttl_seconds=600)
-
-    def test_langfuse_outage_graceful_fallback(self):
-        mock_client = MagicMock()
-        mock_client.get_prompt.side_effect = TimeoutError("Langfuse connection timed out")
-
-        with patch.object(PromptManager, "_get_langfuse_client", return_value=mock_client):
-            PromptManager.clear_cache()
-            prompt = PromptManager.get_system_prompt()
-            # Must return default system prompt without raising exception
-            assert "KnowFlow AI" in prompt
+            assert prompt == "Langfuse System Prompt Live CMS"
+            mock_client.get_prompt.assert_called_once()
 
 
 @pytest.mark.django_db
