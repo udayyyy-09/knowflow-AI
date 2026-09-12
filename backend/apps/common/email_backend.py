@@ -158,21 +158,109 @@ class ResendAPIBackend(BaseEmailBackend):
         return num_sent
 
 
+class BrevoAPIBackend(BaseEmailBackend):
+    """
+    HTTP/HTTPS REST API Email Backend using Brevo (formerly Sendinblue - https://brevo.com).
+    Bypasses all outbound SMTP port blocks (ports 25/587/465) and delivers to ANY recipient
+    email address worldwide without requiring custom DNS domain verification.
+    """
+    BREVO_API_URL = "https://api.brevo.com/v3/smtp/email"
+
+    def __init__(self, api_key=None, fail_silently=False, **kwargs):
+        super().__init__(fail_silently=fail_silently, **kwargs)
+        self.api_key = api_key or getattr(settings, 'BREVO_API_KEY', '')
+
+    def send_messages(self, email_messages):
+        import email.utils
+        if not email_messages:
+            return 0
+
+        if not self.api_key:
+            error_msg = "BREVO_API_KEY is not configured in environment or settings."
+            logger.error(error_msg)
+            if not self.fail_silently:
+                raise ValueError(error_msg)
+            return 0
+
+        num_sent = 0
+        headers = {
+            "api-key": self.api_key,
+            "Content-Type": "application/json",
+            "accept": "application/json",
+            "User-Agent": "KnowFlow-AI/1.0",
+        }
+
+        for message in email_messages:
+            try:
+                html_body = None
+                if hasattr(message, 'alternatives'):
+                    for content, mimetype in message.alternatives:
+                        if mimetype == 'text/html':
+                            html_body = content
+                            break
+
+                from_str = message.from_email or getattr(settings, 'DEFAULT_FROM_EMAIL', 'KnowFlow AI <udaychaudhary419@gmail.com>')
+                name, sender_email = email.utils.parseaddr(from_str)
+                if not name:
+                    name = "KnowFlow AI"
+                if not sender_email or '@knowflow.ai' in sender_email:
+                    sender_email = getattr(settings, 'EMAIL_HOST_USER', '') or "udaychaudhary419@gmail.com"
+
+                payload = {
+                    "sender": {"name": name, "email": sender_email},
+                    "to": [{"email": to_addr} for to_addr in message.to],
+                    "subject": message.subject,
+                    "textContent": message.body,
+                }
+                if html_body:
+                    payload["htmlContent"] = html_body
+                if message.reply_to:
+                    r_name, r_email = email.utils.parseaddr(message.reply_to[0])
+                    payload["replyTo"] = {"email": r_email, "name": r_name or r_email}
+
+                response = requests.post(
+                    self.BREVO_API_URL,
+                    headers=headers,
+                    json=payload,
+                    timeout=15
+                )
+
+                if response.status_code in (200, 201, 202):
+                    num_sent += 1
+                    msg_id = response.json().get('messageId', 'ok')
+                    logger.info("Brevo API dispatched email '%s' to %s (Message ID: %s)", message.subject, message.to, msg_id)
+                else:
+                    err_msg = f"Brevo API error (Status {response.status_code}): {response.text}"
+                    logger.error(err_msg)
+                    if not self.fail_silently:
+                        raise Exception(err_msg)
+            except Exception as e:
+                logger.error("Failed sending message via Brevo API: %s", e, exc_info=True)
+                if not self.fail_silently:
+                    raise
+
+        return num_sent
+
+
 class SmartEmailBackend(BaseEmailBackend):
     """
     Intelligent Email Backend that routes:
-    1. Resend API if RESEND_API_KEY is present in settings.
-    2. IPv4SafeSMTPBackend if EMAIL_HOST is configured with credentials.
-    3. Console backend for local development when no credentials are provided.
+    1. Brevo HTTPS API if BREVO_API_KEY is present in settings.
+    2. Resend HTTPS API if RESEND_API_KEY is present in settings.
+    3. IPv4SafeSMTPBackend if EMAIL_HOST is configured.
+    4. Console backend for local development when no credentials are provided.
     """
     def __init__(self, fail_silently=False, **kwargs):
         super().__init__(fail_silently=fail_silently, **kwargs)
+        brevo_key = getattr(settings, 'BREVO_API_KEY', '')
         resend_key = getattr(settings, 'RESEND_API_KEY', '')
         email_host = getattr(settings, 'EMAIL_HOST', '')
         email_user = getattr(settings, 'EMAIL_HOST_USER', '')
         is_debug = getattr(settings, 'DEBUG', True)
 
-        if resend_key:
+        if brevo_key:
+            self.backend = BrevoAPIBackend(api_key=brevo_key, fail_silently=fail_silently)
+        elif resend_key:
             self.backend = ResendAPIBackend(api_key=resend_key, fail_silently=fail_silently)
         elif email_host and (email_user or not is_debug):
             self.backend = IPv4SafeSMTPBackend(fail_silently=fail_silently)
