@@ -56,10 +56,13 @@ class IPv4SMTP(smtplib.SMTP):
 class IPv4SMTP_SSL(smtplib.SMTP_SSL):
     """SMTP_SSL subclass that forces IPv4 socket connection."""
     def _get_socket(self, host, port, timeout):
+        import ssl
         if self.debuglevel > 0:
             self._print_debug('connect: to', (host, port), self.source_address)
         new_socket = create_ipv4_connection((host, port), timeout, self.source_address)
-        return self._context.wrap_socket(new_socket, server_hostname=self._host)
+        ctx = getattr(self, 'context', None) or getattr(self, '_context', None) or ssl.create_default_context()
+        server_hostname = getattr(self, '_host', None) or getattr(self, 'host', None) or host
+        return ctx.wrap_socket(new_socket, server_hostname=server_hostname)
 
 
 class IPv4SafeSMTPBackend(DjangoSMTPBackend):
