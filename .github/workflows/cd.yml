@@ -1,88 +1,26 @@
-name: KnowFlow AI — Production CD (Render & Vercel)
+name: KnowFlow AI — CD
 
 on:
-  push:
+  workflow_run:
+    workflows: ["KnowFlow AI — CI"]
+    types:
+      - completed
     branches:
       - main
   workflow_dispatch:
 
 concurrency:
-  group: production-deploy-${{ github.ref }}
+  group: cd-production
   cancel-in-progress: false
 
 jobs:
   # ---------------------------------------------------------------------------
-  # Step 1: Automated Test Suite & Build Verification
-  # ---------------------------------------------------------------------------
-  pre-deploy-check:
-    name: Run Pre-Flight Tests & Builds
-    runs-on: ubuntu-latest
-
-    services:
-      redis:
-        image: redis:7-alpine
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 5
-
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      # Backend Validation
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: 'pip'
-
-      - name: Install Backend Dependencies
-        run: |
-          cd backend
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Run Pytest Test Suite
-        env:
-          DJANGO_SETTINGS_MODULE: config.settings.test
-          DJANGO_SECRET_KEY: cd-preflight-test-secret-key-123456789
-          REDIS_URL: redis://localhost:6379/0
-          CELERY_BROKER_URL: redis://localhost:6379/0
-          CELERY_RESULT_BACKEND: redis://localhost:6379/0
-        run: |
-          cd backend
-          pytest -v
-
-      # Frontend Validation
-      - name: Set up Node.js 20
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'npm'
-          cache-dependency-path: 'frontend/package-lock.json'
-
-      - name: Install Frontend Dependencies
-        run: |
-          cd frontend
-          npm ci
-
-      - name: Run Frontend TypeCheck & Production Build
-        run: |
-          cd frontend
-          npm run build
-
-  # ---------------------------------------------------------------------------
-  # Step 2: Deploy Backend to Render (via Deploy Hook)
+  # Step 1: Deploy Backend to Render (via Deploy Hook)
   # ---------------------------------------------------------------------------
   deploy-backend:
     name: Deploy Backend to Render
-    needs: pre-deploy-check
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
 
     steps:
       - name: Trigger Render Web Service Deployment
@@ -106,13 +44,12 @@ jobs:
           fi
 
   # ---------------------------------------------------------------------------
-  # Step 3: Deploy Frontend to Vercel
+  # Step 2: Deploy Frontend to Vercel
   # ---------------------------------------------------------------------------
   deploy-frontend:
     name: Deploy Frontend to Vercel
-    needs: pre-deploy-check
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
 
     steps:
       - name: Checkout Code
@@ -131,22 +68,20 @@ jobs:
           vercel-args: '--prod'
 
   # ---------------------------------------------------------------------------
-  # Step 4: Post-Deployment Summary
+  # Step 3: Deployment Summary
   # ---------------------------------------------------------------------------
   deployment-summary:
-    name: Deployment Summary
+    name: Publish Deployment Summary
     needs: [deploy-backend, deploy-frontend]
     runs-on: ubuntu-latest
     if: always()
 
     steps:
-      - name: Publish Deployment Summary
+      - name: Post Summary to GitHub Actions Step Summary
         run: |
-          echo "### 🚀 KnowFlow AI Deployment Pipeline Summary" >> $GITHUB_STEP_SUMMARY
+          echo "### 🚀 KnowFlow AI Production Deployment" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **Commit**: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Branch**: \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Actor**: \`${{ github.actor }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Pre-Flight Tests**: ✅ Passed" >> $GITHUB_STEP_SUMMARY
+          echo "- **Trigger**: \`${{ github.event_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **CI Result**: \`${{ github.event.workflow_run.conclusion || 'Manual Dispatch' }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Render Backend Status**: ${{ needs.deploy-backend.result }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Vercel Frontend Status**: ${{ needs.deploy-frontend.result }}" >> $GITHUB_STEP_SUMMARY
