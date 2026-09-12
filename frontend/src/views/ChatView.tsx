@@ -8,6 +8,8 @@ import { ConversationSidebar } from '@/components/chat/ConversationSidebar';
 import { ChatWindow } from '@/components/chat/ChatWindow';
 import { CitationDetailModal } from '@/components/chat/CitationDetailModal';
 
+import { clientCache } from '@/utils/clientCache';
+
 // Clean filename into human readable subject
 const formatDocTitle = (rawTitle: string): string => {
   return rawTitle
@@ -22,7 +24,11 @@ export const ChatView: React.FC = () => {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [documents, setDocuments] = useState<Document[]>([]);
+  
+  const cacheKey = activeWorkspace?.id ? `docs_${activeWorkspace.id}` : '';
+  const [documents, setDocuments] = useState<Document[]>(
+    cacheKey ? clientCache.get<Document[]>(cacheKey) || [] : []
+  );
   const [loadingConversations, setLoadingConversations] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [isMobileConvSidebarOpen, setIsMobileConvSidebarOpen] = useState(false);
@@ -41,10 +47,16 @@ export const ChatView: React.FC = () => {
       setDocuments([]);
       return;
     }
+    const docCacheKey = `docs_${activeWorkspace.id}`;
+    const cachedDocs = clientCache.get<Document[]>(docCacheKey);
+    if (cachedDocs) {
+      setDocuments(cachedDocs);
+    }
     const loadDocs = async () => {
       try {
         const docs = await documentsApi.list(activeWorkspace.id);
         setDocuments(docs);
+        clientCache.set(docCacheKey, docs);
       } catch (err) {
         console.error('Failed to load documents for dynamic suggestions:', err);
       }
@@ -332,6 +344,7 @@ export const ChatView: React.FC = () => {
         onClose={() => setSelectedCitation(null)}
         citation={selectedCitation?.citation || null}
         sourceId={selectedCitation?.sourceId || null}
+        workspaceName={activeWorkspace?.name || 'Active Workspace'}
       />
     </div>
   );

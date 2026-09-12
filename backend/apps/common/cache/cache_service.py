@@ -236,3 +236,67 @@ class CacheService:
             cache.delete(key)
         except Exception as e:
             logger.warning("Error invalidating workspace detail cache: %s", str(e))
+
+    # -------------------------------------------------------------------------
+    # Workspace Documents & Members List Cache
+    # -------------------------------------------------------------------------
+
+    DEFAULT_LIST_TTL = 300  # 5 minutes
+
+    @classmethod
+    def get_workspace_documents(cls, workspace_id: str) -> Optional[List[Dict[str, Any]]]:
+        """Retrieves cached workspace document list."""
+        key = CacheKeys.workspace_documents(workspace_id)
+        try:
+            return cache.get(key)
+        except Exception as e:
+            logger.warning("Error reading workspace documents cache: %s", str(e))
+            return None
+
+    @classmethod
+    def set_workspace_documents(cls, workspace_id: str, data: List[Dict[str, Any]], timeout: Optional[int] = None) -> None:
+        """Caches workspace document list."""
+        key = CacheKeys.workspace_documents(workspace_id)
+        ttl = timeout or cls.DEFAULT_LIST_TTL
+        try:
+            cache.set(key, data, timeout=ttl)
+        except Exception as e:
+            logger.warning("Error writing workspace documents cache: %s", str(e))
+
+    @classmethod
+    def invalidate_workspace_documents(cls, workspace_id: str) -> None:
+        """Invalidates cached workspace document list."""
+        key = CacheKeys.workspace_documents(workspace_id)
+        try:
+            cache.delete(key)
+        except Exception as e:
+            logger.warning("Error invalidating workspace documents cache: %s", str(e))
+
+    @classmethod
+    def get_workspace_members(cls, workspace_id: str) -> Optional[List[Dict[str, Any]]]:
+        """Retrieves cached workspace members list."""
+        key = CacheKeys.workspace_members(workspace_id)
+        try:
+            return cache.get(key)
+        except Exception as e:
+            logger.warning("Error reading workspace members cache: %s", str(e))
+            return None
+
+    @classmethod
+    def set_workspace_members(cls, workspace_id: str, data: List[Dict[str, Any]], timeout: Optional[int] = None) -> None:
+        """Caches workspace members list."""
+        key = CacheKeys.workspace_members(workspace_id)
+        ttl = timeout or cls.DEFAULT_LIST_TTL
+        try:
+            cache.set(key, data, timeout=ttl)
+        except Exception as e:
+            logger.warning("Error writing workspace members cache: %s", str(e))
+
+    @classmethod
+    def invalidate_workspace_members(cls, workspace_id: str) -> None:
+        """Invalidates cached workspace members list."""
+        key = CacheKeys.workspace_members(workspace_id)
+        try:
+            cache.delete(key)
+        except Exception as e:
+            logger.warning("Error invalidating workspace members cache: %s", str(e))

@@ -73,7 +73,6 @@ class CitationValidator:
         if cited_indices:
             for idx in sorted(cited_indices):
                 chunk = budgeted_chunks[idx - 1]
-                snippet = chunk.content[:200] + "..." if len(chunk.content) > 200 else chunk.content
                 sources.append({
                     "citation_index": idx,
                     "chunk_id": chunk.chunk_id,
@@ -83,13 +82,13 @@ class CitationValidator:
                     "section_header": chunk.section_header,
                     "page_number": chunk.page_number,
                     "similarity_score": round(chunk.similarity_score, 4),
-                    "snippet": snippet,
+                    "snippet": chunk.content,
+                    "content": chunk.content,
                 })
         elif budgeted_chunks and budgeted_chunks[0].similarity_score >= min_fallback_similarity:
             # Fallback: Model didn't output bracketed tags, but top-1 chunk was highly relevant.
             # Attach top chunk as reference source.
             top_chunk = budgeted_chunks[0]
-            snippet = top_chunk.content[:200] + "..." if len(top_chunk.content) > 200 else top_chunk.content
             sources.append({
                 "citation_index": 1,
                 "chunk_id": top_chunk.chunk_id,
@@ -99,7 +98,8 @@ class CitationValidator:
                 "section_header": top_chunk.section_header,
                 "page_number": top_chunk.page_number,
                 "similarity_score": round(top_chunk.similarity_score, 4),
-                "snippet": snippet,
+                "snippet": top_chunk.content,
+                "content": top_chunk.content,
             })
 
         return sanitized_text, sources

@@ -8,18 +8,23 @@ from apps.chat.models import Conversation, Message, MessageSource
 class MessageSourceSerializer(serializers.ModelSerializer):
     """Serializer for structured citation sources."""
 
+    content = serializers.CharField(source="snippet", read_only=True)
+    document_id = serializers.UUIDField(source="chunk.document_id", read_only=True, allow_null=True)
+
     class Meta:
         model = MessageSource
         fields = [
             "id",
             "citation_index",
             "chunk_id",
+            "document_id",
             "similarity_score",
             "document_title",
             "original_filename",
             "section_header",
             "page_number",
             "snippet",
+            "content",
         ]
 
 

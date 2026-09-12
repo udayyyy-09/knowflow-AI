@@ -86,6 +86,18 @@ class CacheKeys:
         """
         return f"{cls.PREFIX_WS_DETAIL}:{str(workspace_id).strip()}"
 
+    PREFIX_MEMBER_LIST = "kf:ws:members"
+
+    @classmethod
+    def workspace_members(cls, workspace_id: str) -> str:
+        """Cache key for workspace member list."""
+        return f"{cls.PREFIX_MEMBER_LIST}:{str(workspace_id).strip()}"
+
+    @classmethod
+    def workspace_documents(cls, workspace_id: str) -> str:
+        """Cache key for workspace document list."""
+        return f"{cls.PREFIX_DOC_LIST}:{str(workspace_id).strip()}"
+
     @classmethod
     def document_list(cls, workspace_id: str, page: int = 1, search: str = "") -> str:
         """

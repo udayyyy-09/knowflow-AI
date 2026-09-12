@@ -178,22 +178,23 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               <div className="flex flex-wrap gap-2">
                 {citationsList.map((c: CitationSource, idx: number) => {
                   const sourceNum = c.source_id ?? c.citation_index ?? idx + 1;
-                  const simScore = c.similarity ?? c.similarity_score ?? 0;
+                  const rawScore = c.similarity ?? c.similarity_score ?? 0;
+                  const percent = Math.round(rawScore > 1 ? rawScore : rawScore * 100);
                   return (
                     <button
                       key={sourceNum}
                       onClick={() => onCitationClick(sourceNum, c)}
-                      className="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-[#F6F5F0] hover:bg-[#ECE9DF] border border-[#DDD9CC] hover:border-[#1B1F27] text-xs text-[#1B1F27] transition group/source cursor-pointer"
+                      className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#F6F5F0] hover:bg-[#ECE9DF] border border-[#DDD9CC] hover:border-[#1B1F27] text-xs text-[#1B1F27] transition group/source cursor-pointer shadow-2xs"
                     >
-                      <span className="font-mono font-bold text-[#A9772F]">
+                      <span className="font-mono font-bold text-[#2E6F5E] bg-[#2E6F5E]/10 px-1.5 py-0.5 rounded text-[11px]">
                         [{sourceNum}]
                       </span>
-                      <span className="truncate max-w-[180px] font-medium">
+                      <span className="truncate max-w-[200px] font-medium text-[#1B1F27]">
                         {c.document_title}
                       </span>
-                      {simScore > 0 && (
-                        <span className="text-[10px] text-[#2E6F5E] font-mono font-bold">
-                          {(simScore * 100).toFixed(0)}%
+                      {percent > 0 && (
+                        <span className="text-[10px] text-[#2E6F5E] font-mono font-semibold bg-white border border-[#DDD9CC] px-1.5 py-0.5 rounded">
+                          {percent >= 70 ? 'High Match' : `${percent}%`}
                         </span>
                       )}
                     </button>

@@ -15,6 +15,7 @@ from apps.documents.models import Document, DocumentVersion, DocumentChunk, Embe
 from apps.documents.permissions import CanManageWorkspaceDocuments
 from apps.documents.tasks import process_document_version, reembed_document_version
 from apps.documents.services.vector_search import VectorSearchService
+from apps.common.cache import CacheService
 from apps.documents.serializers import (
     DocumentListSerializer,
     DocumentDetailSerializer,
@@ -66,6 +67,39 @@ class DocumentListCreateView(generics.ListCreateAPIView):
 
         return queryset
 
+    def list(self, request, *args, **kwargs):
+        workspace = self.get_workspace()
+        has_filters = bool(
+            request.query_params.get('status') or
+            request.query_params.get('file_type') or
+            request.query_params.get('search')
+        )
+
+        # 1. Try Redis cache if standard unfiltered list request
+        if not has_filters:
+            cached_data = CacheService.get_workspace_documents(str(workspace.id))
+            if cached_data is not None:
+                return Response({
+                    "success": True,
+                    "data": cached_data,
+                    "cached": True,
+                })
+
+        # 2. Query Postgres if cache miss or filtered
+        queryset = self.filter_queryset(self.get_queryset())
+        serializer = self.get_serializer(queryset, many=True)
+        serialized_data = serializer.data
+
+        # 3. Store in Redis cache (5-min TTL)
+        if not has_filters:
+            CacheService.set_workspace_documents(str(workspace.id), serialized_data)
+
+        return Response({
+            "success": True,
+            "data": serialized_data,
+            "cached": False,
+        })
+
     def create(self, request, *args, **kwargs):
         workspace = self.get_workspace()
         serializer = self.get_serializer(
@@ -74,6 +108,10 @@ class DocumentListCreateView(generics.ListCreateAPIView):
         )
         serializer.is_valid(raise_exception=True)
         document = serializer.save()
+
+        # Invalidate document list cache
+        CacheService.invalidate_workspace_documents(str(workspace.id))
+        CacheService.bump_knowledge_version(str(workspace.id))
 
         detail_data = DocumentDetailSerializer(document, context={'request': request}).data
         warning_msg = serializer.validated_data.get('duplicate_warning')
@@ -124,6 +162,7 @@ class DocumentDetailView(generics.RetrieveUpdateDestroyAPIView):
         instance.save()
 
         serializer = self.get_serializer(instance)
+        CacheService.invalidate_workspace_documents(str(instance.workspace_id))
         return Response({
             "success": True,
             "message": "Document metadata updated successfully.",
@@ -137,6 +176,7 @@ class DocumentDetailView(generics.RetrieveUpdateDestroyAPIView):
         instance.save(update_fields=['is_active', 'status', 'updated_at'])
 
         from apps.common.cache import CacheService
+        CacheService.invalidate_workspace_documents(str(instance.workspace_id))
         CacheService.bump_knowledge_version(str(instance.workspace_id))
 
         return Response({

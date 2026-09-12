@@ -21,12 +21,20 @@ import {
 } from 'lucide-react';
 import { Spinner } from '@/components/common/Spinner';
 
+import { clientCache } from '@/utils/clientCache';
+
 export const MembersView: React.FC = () => {
   const { activeWorkspace, userRole } = useWorkspace();
-  const [members, setMembers] = useState<WorkspaceMembership[]>([]);
-  const [invitations, setInvitations] = useState<WorkspaceInvitation[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingInvitations, setLoadingInvitations] = useState(false);
+  const cacheKeyMembers = activeWorkspace?.id ? `members_${activeWorkspace.id}` : '';
+  const cacheKeyInvites = activeWorkspace?.id ? `invites_${activeWorkspace.id}` : '';
+
+  const initialCachedMembers = cacheKeyMembers ? clientCache.get<WorkspaceMembership[]>(cacheKeyMembers) : null;
+  const initialCachedInvites = cacheKeyInvites ? clientCache.get<WorkspaceInvitation[]>(cacheKeyInvites) : null;
+
+  const [members, setMembers] = useState<WorkspaceMembership[]>(initialCachedMembers || []);
+  const [invitations, setInvitations] = useState<WorkspaceInvitation[]>(initialCachedInvites || []);
+  const [loading, setLoading] = useState(!initialCachedMembers);
+  const [loadingInvitations, setLoadingInvitations] = useState(!initialCachedInvites && userRole === 'ADMIN');
   
   // Invite Member Modal
   const [isInviteOpen, setIsInviteOpen] = useState(false);
@@ -45,36 +53,48 @@ export const MembersView: React.FC = () => {
   const [invitationToRevoke, setInvitationToRevoke] = useState<WorkspaceInvitation | null>(null);
   const [isRevoking, setIsRevoking] = useState(false);
 
-  const fetchMembers = useCallback(async () => {
+  const fetchMembers = useCallback(async (showLoading = true) => {
     if (!activeWorkspace || !activeWorkspace.id) return;
-    setLoading(true);
+    if (showLoading && !clientCache.get(cacheKeyMembers)) {
+      setLoading(true);
+    }
     try {
       const data = await workspacesApi.listMembers(activeWorkspace.id);
       setMembers(data);
+      if (cacheKeyMembers) {
+        clientCache.set(cacheKeyMembers, data);
+      }
     } catch (err) {
       console.error('Failed to load members:', err);
     } finally {
       setLoading(false);
     }
-  }, [activeWorkspace]);
+  }, [activeWorkspace, cacheKeyMembers]);
 
-  const fetchInvitations = useCallback(async () => {
+  const fetchInvitations = useCallback(async (showLoading = true) => {
     if (!activeWorkspace || !activeWorkspace.id || userRole !== 'ADMIN') return;
-    setLoadingInvitations(true);
+    if (showLoading && !clientCache.get(cacheKeyInvites)) {
+      setLoadingInvitations(true);
+    }
     try {
       const data = await workspacesApi.listInvitations(activeWorkspace.id);
       setInvitations(data);
+      if (cacheKeyInvites) {
+        clientCache.set(cacheKeyInvites, data);
+      }
     } catch (err) {
       console.error('Failed to load invitations:', err);
     } finally {
       setLoadingInvitations(false);
     }
-  }, [activeWorkspace, userRole]);
+  }, [activeWorkspace, userRole, cacheKeyInvites]);
 
   useEffect(() => {
-    fetchMembers();
-    fetchInvitations();
-  }, [fetchMembers, fetchInvitations]);
+    const hasCachedMembers = !!clientCache.get(cacheKeyMembers);
+    const hasCachedInvites = !!clientCache.get(cacheKeyInvites);
+    fetchMembers(!hasCachedMembers);
+    fetchInvitations(!hasCachedInvites);
+  }, [fetchMembers, fetchInvitations, cacheKeyMembers, cacheKeyInvites]);
 
   const handleInviteSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

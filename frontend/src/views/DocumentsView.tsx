@@ -15,10 +15,15 @@ import {
   AlertTriangle
 } from 'lucide-react';
 
+import { clientCache } from '@/utils/clientCache';
+
 export const DocumentsView: React.FC = () => {
   const { activeWorkspace } = useWorkspace();
-  const [documents, setDocuments] = useState<Document[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cacheKey = activeWorkspace?.id ? `docs_${activeWorkspace.id}` : '';
+  const initialCachedDocs = cacheKey ? clientCache.get<Document[]>(cacheKey) : null;
+
+  const [documents, setDocuments] = useState<Document[]>(initialCachedDocs || []);
+  const [loading, setLoading] = useState(!initialCachedDocs);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   
   // Chunk inspection drawer state
@@ -31,16 +36,21 @@ export const DocumentsView: React.FC = () => {
 
   const fetchDocuments = useCallback(async (showLoading = true) => {
     if (!activeWorkspace || !activeWorkspace.id) return;
-    if (showLoading) setLoading(true);
+    if (showLoading && !clientCache.get(cacheKey)) {
+      setLoading(true);
+    }
     try {
       const data = await documentsApi.list(activeWorkspace.id);
       setDocuments(data);
+      if (cacheKey) {
+        clientCache.set(cacheKey, data);
+      }
     } catch (err) {
       console.error('Failed to fetch documents:', err);
     } finally {
-      if (showLoading) setLoading(false);
+      setLoading(false);
     }
-  }, [activeWorkspace]);
+  }, [activeWorkspace, cacheKey]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -52,8 +62,10 @@ export const DocumentsView: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchDocuments(true);
-  }, [fetchDocuments]);
+    // If cached data exists, revalidate quietly; otherwise show loader
+    const hasCache = !!clientCache.get(cacheKey);
+    fetchDocuments(!hasCache);
+  }, [fetchDocuments, cacheKey]);
 
   // Polling when any document is in in-flight states
   useEffect(() => {

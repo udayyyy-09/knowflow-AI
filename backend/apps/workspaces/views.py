@@ -161,6 +161,17 @@ class WorkspaceMemberListCreateView(generics.ListCreateAPIView):
         return WorkspaceMembershipSerializer
 
     def list(self, request, *args, **kwargs):
+        workspace = self.get_workspace()
+        
+        # Check Redis cache
+        cached_data = CacheService.get_workspace_members(str(workspace.id))
+        if cached_data is not None:
+            return Response({
+                "success": True,
+                "data": cached_data,
+                "cached": True,
+            })
+
         queryset = self.filter_queryset(self.get_queryset())
         page = self.paginate_queryset(queryset)
         if page is not None:
@@ -168,9 +179,13 @@ class WorkspaceMemberListCreateView(generics.ListCreateAPIView):
             return self.get_paginated_response(serializer.data)
 
         serializer = WorkspaceMembershipSerializer(queryset, many=True)
+        serialized_data = serializer.data
+        CacheService.set_workspace_members(str(workspace.id), serialized_data)
+
         return Response({
             "success": True,
-            "data": serializer.data,
+            "data": serialized_data,
+            "cached": False,
         })
 
     def create(self, request, *args, **kwargs):
@@ -182,6 +197,7 @@ class WorkspaceMemberListCreateView(generics.ListCreateAPIView):
         serializer.is_valid(raise_exception=True)
         membership = serializer.save()
         CacheService.invalidate_user_workspace_role(str(membership.user_id), str(workspace.id))
+        CacheService.invalidate_workspace_members(str(workspace.id))
         read_serializer = WorkspaceMembershipSerializer(membership)
         return Response(
             {
@@ -216,6 +232,7 @@ class WorkspaceMemberDetailView(generics.RetrieveUpdateDestroyAPIView):
         serializer.is_valid(raise_exception=True)
         membership = serializer.save()
         CacheService.invalidate_user_workspace_role(str(membership.user_id), str(membership.workspace_id))
+        CacheService.invalidate_workspace_members(str(membership.workspace_id))
         return Response({
             "success": True,
             "message": "Member role updated successfully.",
@@ -246,6 +263,7 @@ class WorkspaceMemberDetailView(generics.RetrieveUpdateDestroyAPIView):
         ws_id_str = str(membership.workspace_id)
         membership.delete()
         CacheService.invalidate_user_workspace_role(user_id_str, ws_id_str)
+        CacheService.invalidate_workspace_members(ws_id_str)
         return Response(
             {
                 "success": True,
@@ -467,6 +485,7 @@ class AcceptInvitationView(generics.GenericAPIView):
             invitation.save(update_fields=['status', 'accepted_at', 'accepted_by', 'updated_at'])
 
         CacheService.invalidate_user_workspace_role(str(user.id), str(workspace.id))
+        CacheService.invalidate_workspace_members(str(workspace.id))
 
         read_serializer = WorkspaceSerializer(workspace, context={'request': request})
         return Response(
