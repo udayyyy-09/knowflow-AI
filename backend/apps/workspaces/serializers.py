@@ -34,6 +34,7 @@ class WorkspaceSerializer(serializers.ModelSerializer):
     """
     member_count = serializers.SerializerMethodField()
     current_user_role = serializers.SerializerMethodField()
+    user_role = serializers.SerializerMethodField()
     created_by_email = serializers.EmailField(source='created_by.email', read_only=True)
 
     class Meta:
@@ -48,6 +49,7 @@ class WorkspaceSerializer(serializers.ModelSerializer):
             'created_by_email',
             'member_count',
             'current_user_role',
+            'user_role',
             'created_at',
             'updated_at',
         )
@@ -61,6 +63,9 @@ class WorkspaceSerializer(serializers.ModelSerializer):
         if request and request.user.is_authenticated:
             return obj.get_member_role(request.user)
         return None
+
+    def get_user_role(self, obj):
+        return self.get_current_user_role(obj)
 
 
 class WorkspaceCreateSerializer(serializers.ModelSerializer):

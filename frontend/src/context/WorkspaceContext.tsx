@@ -82,7 +82,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         activeWorkspace,
         isLoading,
         loading: isLoading,
-        userRole: activeWorkspace?.user_role || 'ADMIN',
+        userRole: activeWorkspace?.user_role || activeWorkspace?.current_user_role || 'EMPLOYEE',
         setActiveWorkspaceId,
         refreshWorkspaces,
         createWorkspace,

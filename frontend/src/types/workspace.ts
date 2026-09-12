@@ -20,6 +20,7 @@ export interface Workspace {
   description?: string;
   is_active: boolean;
   user_role?: WorkspaceRole;
+  current_user_role?: WorkspaceRole;
   members_count?: number;
   documents_count?: number;
   created_at: string;

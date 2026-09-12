@@ -18,6 +18,7 @@ import { Spinner } from '@/components/common/Spinner';
 interface DocumentListProps {
   documents: Document[];
   loading: boolean;
+  canManageDocs?: boolean;
   onInspectChunks: (doc: Document) => void;
   onDelete: (doc: Document) => void;
   onOpenUpload: () => void;
@@ -26,6 +27,7 @@ interface DocumentListProps {
 export const DocumentList: React.FC<DocumentListProps> = ({
   documents,
   loading,
+  canManageDocs = false,
   onInspectChunks,
   onDelete,
   onOpenUpload,
@@ -130,12 +132,16 @@ export const DocumentList: React.FC<DocumentListProps> = ({
               : 'No documents in this workspace yet'}
           </h3>
           <p className="text-sm text-[#5B6270] max-w-md mx-auto mb-6">
-            Upload policies, technical manuals, onboarding guides, or product specs to empower your RAG assistant.
+            {canManageDocs
+              ? 'Upload policies, technical manuals, onboarding guides, or product specs to empower your RAG assistant.'
+              : 'You have Employee access. Workspace Administrators and Managers can upload company policies and documents here.'}
           </p>
-          <Button variant="primary" onClick={onOpenUpload}>
-            <UploadCloud className="w-4 h-4 mr-2" />
-            Upload First Document
-          </Button>
+          {canManageDocs && (
+            <Button variant="primary" onClick={onOpenUpload}>
+              <UploadCloud className="w-4 h-4 mr-2" />
+              Upload First Document
+            </Button>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -181,28 +187,30 @@ export const DocumentList: React.FC<DocumentListProps> = ({
                   </div>
                 </div>
 
-                {/* Bottom Actions */}
-                <div className="pt-3 border-t border-[#DDD9CC]/60 flex items-center justify-between gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onInspectChunks(doc)}
-                    className="text-xs flex items-center gap-1.5 flex-1 justify-center border-[#DDD9CC] hover:bg-[#F6F5F0]"
-                  >
-                    <Layers className="w-3.5 h-3.5 text-[#2E6F5E]" />
-                    Chunks ({count})
-                  </Button>
+                {/* Bottom Actions (Admins / Managers only) */}
+                {canManageDocs && (
+                  <div className="pt-3 border-t border-[#DDD9CC]/60 flex items-center justify-between gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onInspectChunks(doc)}
+                      className="text-xs flex items-center gap-1.5 flex-1 justify-center border-[#DDD9CC] hover:bg-[#F6F5F0]"
+                    >
+                      <Layers className="w-3.5 h-3.5 text-[#2E6F5E]" />
+                      Chunks ({count})
+                    </Button>
 
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onDelete(doc)}
-                    className="p-2 text-[#5B6270] hover:text-red-600 hover:bg-red-50"
-                    title="Delete Document"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </Button>
-                </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onDelete(doc)}
+                      className="p-2 text-[#5B6270] hover:text-red-600 hover:bg-red-50"
+                      title="Delete Document"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                )}
               </div>
             );
           })}

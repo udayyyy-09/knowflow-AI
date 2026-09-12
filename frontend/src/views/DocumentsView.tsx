@@ -18,7 +18,8 @@ import {
 import { clientCache } from '@/utils/clientCache';
 
 export const DocumentsView: React.FC = () => {
-  const { activeWorkspace } = useWorkspace();
+  const { activeWorkspace, userRole } = useWorkspace();
+  const canManageDocs = userRole === 'ADMIN' || userRole === 'MANAGER';
   const cacheKey = activeWorkspace?.id ? `docs_${activeWorkspace.id}` : '';
   const initialCachedDocs = cacheKey ? clientCache.get<Document[]>(cacheKey) : null;
 
@@ -132,14 +133,16 @@ export const DocumentsView: React.FC = () => {
             <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-[#2E6F5E]' : 'text-[#5B6270]'}`} />
             <span></span>
           </Button>
-          <Button
-            variant="primary"
-            size="md"
-            onClick={() => setIsUploadOpen(true)}
-          >
-            <UploadCloud className="w-4 h-4 mr-2" />
-            Upload Documents
-          </Button>
+          {canManageDocs && (
+            <Button
+              variant="primary"
+              size="md"
+              onClick={() => setIsUploadOpen(true)}
+            >
+              <UploadCloud className="w-4 h-4 mr-2" />
+              Upload Documents
+            </Button>
+          )}
         </div>
       </div>
 
@@ -180,6 +183,7 @@ export const DocumentsView: React.FC = () => {
       <DocumentList
         documents={documents}
         loading={loading}
+        canManageDocs={canManageDocs}
         onInspectChunks={(doc) => setSelectedDocForChunks(doc)}
         onDelete={(doc) => setDocToDelete(doc)}
         onOpenUpload={() => setIsUploadOpen(true)}
