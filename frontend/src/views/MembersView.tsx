@@ -16,7 +16,6 @@ import {
   Send,
   XCircle,
   CheckCircle2,
-  Copy,
   Check
 } from 'lucide-react';
 import { Spinner } from '@/components/common/Spinner';
@@ -43,7 +42,10 @@ export const MembersView: React.FC = () => {
   const [isSubmittingInvite, setIsSubmittingInvite] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [inviteSuccessMsg, setInviteSuccessMsg] = useState<string | null>(null);
-  const [copiedToken, setCopiedToken] = useState<string | null>(null);
+
+  // Resend / Revoke
+  const [resendingId, setResendingId] = useState<string | null>(null);
+  const [resendSuccessId, setResendSuccessId] = useState<string | null>(null);
 
   // Remove Member Confirm
   const [memberToRemove, setMemberToRemove] = useState<WorkspaceMembership | null>(null);
@@ -99,6 +101,7 @@ export const MembersView: React.FC = () => {
   const handleInviteSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeWorkspace || !activeWorkspace.id || !inviteEmail.trim()) return;
+    const targetEmail = inviteEmail.trim();
     setIsSubmittingInvite(true);
     setInviteError(null);
     setInviteSuccessMsg(null);
@@ -106,13 +109,13 @@ export const MembersView: React.FC = () => {
     try {
       await workspacesApi.sendInvitation(
         activeWorkspace.id,
-        inviteEmail.trim(),
+        targetEmail,
         inviteRole
       );
-      setInviteSuccessMsg(`Invitation sent to ${inviteEmail.trim()}! An email with a secure join link has been dispatched.`);
+      setInviteSuccessMsg(`Invitation email sent successfully to ${targetEmail}! A secure onboarding link has been dispatched to their inbox.`);
       setInviteEmail('');
       setInviteRole('EMPLOYEE');
-      fetchInvitations();
+      fetchInvitations(false);
     } catch (err: any) {
       const errorMsg =
         err?.response?.data?.email?.[0] ||
@@ -122,6 +125,21 @@ export const MembersView: React.FC = () => {
       setInviteError(errorMsg);
     } finally {
       setIsSubmittingInvite(false);
+    }
+  };
+
+  const handleResendInvitation = async (invitationId: string) => {
+    if (!activeWorkspace || !activeWorkspace.id) return;
+    setResendingId(invitationId);
+    try {
+      await workspacesApi.resendInvitation(activeWorkspace.id, invitationId);
+      setResendSuccessId(invitationId);
+      setTimeout(() => setResendSuccessId(null), 3000);
+      fetchInvitations(false);
+    } catch (err) {
+      console.error('Failed to resend invitation email:', err);
+    } finally {
+      setResendingId(null);
     }
   };
 
@@ -163,14 +181,6 @@ export const MembersView: React.FC = () => {
     } finally {
       setIsRevoking(false);
     }
-  };
-
-  const handleCopyInviteLink = (token: string) => {
-    const origin = window.location.origin;
-    const url = `${origin}/#invite=${token}`;
-    navigator.clipboard.writeText(url);
-    setCopiedToken(token);
-    setTimeout(() => setCopiedToken(null), 2000);
   };
 
   const isAdmin = userRole === 'ADMIN';
@@ -351,19 +361,22 @@ export const MembersView: React.FC = () => {
                       </td>
                       <td className="px-6 py-3.5 text-right space-x-2">
                         <button
-                          onClick={() => handleCopyInviteLink(inv.token)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-[#DDD9CC] text-[#1B1F27] hover:bg-[#F6F5F0] transition font-medium cursor-pointer"
-                          title="Copy Invitation URL"
+                          onClick={() => handleResendInvitation(inv.id)}
+                          disabled={resendingId === inv.id}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-[#DDD9CC] text-[#1B1F27] hover:bg-[#F6F5F0] transition font-medium cursor-pointer disabled:opacity-50"
+                          title="Resend invitation email"
                         >
-                          {copiedToken === inv.token ? (
+                          {resendingId === inv.id ? (
+                            <Spinner size="sm" />
+                          ) : resendSuccessId === inv.id ? (
                             <>
                               <Check className="w-3.5 h-3.5 text-[#2E6F5E]" />
-                              <span>Copied!</span>
+                              <span>Sent!</span>
                             </>
                           ) : (
                             <>
-                              <Copy className="w-3.5 h-3.5 text-[#8C93A0]" />
-                              <span>Copy Link</span>
+                              <Mail className="w-3.5 h-3.5 text-[#2E6F5E]" />
+                              <span>Resend Email</span>
                             </>
                           )}
                         </button>
@@ -468,7 +481,7 @@ export const MembersView: React.FC = () => {
           <div className="p-3 rounded-xl bg-[#F6F5F0] border border-[#DDD9CC] flex items-center gap-2.5 text-xs text-[#5B6270]">
             <Lock className="w-4 h-4 text-[#2E6F5E] shrink-0" />
             <span>
-              Generates a cryptographically signed one-time join token valid for 7 days.
+              Dispatches a cryptographically signed invitation link valid for 7 days directly to their inbox.
             </span>
           </div>
 

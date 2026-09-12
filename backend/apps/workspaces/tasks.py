@@ -61,6 +61,16 @@ def send_workspace_invitation_email(self, invitation_id: str):
         msg.send(fail_silently=False)
         logger.info("Successfully sent invitation email to %s for workspace '%s'", invitation.email, invitation.workspace.name)
         return True
+    except OSError as net_err:
+        logger.error(
+            "Network error sending invitation email to %s: %s. "
+            "Tip: On Render, standard SMTP port 25/587 can fail with [Errno 101] Network is unreachable. "
+            "Set RESEND_API_KEY for HTTP API delivery or use EMAIL_USE_SSL=True on port 465.",
+            invitation.email, str(net_err)
+        )
+        countdown = 30 * (2 ** self.request.retries)
+        raise self.retry(exc=net_err, countdown=countdown)
     except Exception as exc:
         logger.error("Failed sending invitation email to %s: %s", invitation.email, str(exc), exc_info=True)
-        raise self.retry(exc=exc)
+        countdown = 30 * (2 ** self.request.retries)
+        raise self.retry(exc=exc, countdown=countdown)

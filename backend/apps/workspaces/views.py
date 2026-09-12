@@ -9,7 +9,13 @@ from django.shortcuts import get_object_or_404
 
 logger = logging.getLogger(__name__)
 
-from apps.workspaces.models import Workspace, WorkspaceMembership, WorkspaceRole
+from apps.workspaces.models import (
+    Workspace,
+    WorkspaceMembership,
+    WorkspaceRole,
+    WorkspaceInvitation,
+    InvitationStatus,
+)
 from apps.workspaces.permissions import (
     IsWorkspaceMember,
     IsWorkspaceAdmin,
@@ -273,7 +279,6 @@ class WorkspaceMemberDetailView(generics.RetrieveUpdateDestroyAPIView):
         )
 
 
-from apps.workspaces.models import WorkspaceInvitation, InvitationStatus
 from apps.workspaces.serializers import (
     WorkspaceInvitationSerializer,
     WorkspaceInvitationCreateSerializer,
@@ -286,8 +291,8 @@ from django.db import transaction
 
 class WorkspaceInvitationListCreateView(generics.ListCreateAPIView):
     """
-    GET  /api/v1/workspaces/<workspace_id>/invitations/ - List pending invitations (Admins only).
-    POST /api/v1/workspaces/<workspace_id>/invitations/ - Send email invitation (Admins only).
+    GET  /api/v1/workspaces/<workspace_id>/invitations/ - List pending invitations (Admins only, tokens omitted).
+    POST /api/v1/workspaces/<workspace_id>/invitations/ - Send email invitation (Admins only, email delivery).
     """
     permission_classes = [permissions.IsAuthenticated, IsWorkspaceAdmin]
 
@@ -353,11 +358,42 @@ class WorkspaceInvitationListCreateView(generics.ListCreateAPIView):
         return Response(
             {
                 "success": True,
-                "message": f"Invitation sent successfully to {email}.",
+                "message": f"Invitation email dispatched successfully to {email}.",
                 "data": read_serializer.data,
             },
             status=status.HTTP_201_CREATED
         )
+
+
+class WorkspaceInvitationResendView(generics.GenericAPIView):
+    """
+    POST /api/v1/workspaces/<workspace_id>/invitations/<id>/resend/
+    Resends an invitation email without exposing raw secrets.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsWorkspaceAdmin]
+
+    def post(self, request, workspace_id, id):
+        invitation = get_object_or_404(
+            WorkspaceInvitation,
+            id=id,
+            workspace_id=workspace_id,
+            status=InvitationStatus.PENDING
+        )
+
+        # Extend expiration by 7 days
+        invitation.expires_at = timezone.now() + timezone.timedelta(days=7)
+        invitation.save(update_fields=['expires_at', 'updated_at'])
+
+        try:
+            send_workspace_invitation_email.delay(str(invitation.id))
+        except Exception as e:
+            logger.warning("Could not dispatch async invitation email celery task: %s", e)
+
+        return Response({
+            "success": True,
+            "message": f"Invitation email re-sent successfully to {invitation.email}.",
+            "data": WorkspaceInvitationSerializer(invitation).data
+        }, status=status.HTTP_200_OK)
 
 
 class WorkspaceInvitationDetailView(generics.DestroyAPIView):

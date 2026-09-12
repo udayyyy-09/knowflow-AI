@@ -79,6 +79,12 @@ export const workspacesApi = {
     await apiClient.delete(`/workspaces/${workspaceId}/invitations/${invitationId}/`);
   },
 
+  async resendInvitation(workspaceId: string, invitationId: string): Promise<WorkspaceInvitation> {
+    if (!workspaceId || !invitationId) throw new Error('Invalid workspace or invitation ID');
+    const res = await apiClient.post(`/workspaces/${workspaceId}/invitations/${invitationId}/resend/`);
+    return res.data.data || res.data;
+  },
+
   async getPublicInvitation(token: string): Promise<InvitationPublicDetail> {
     const res = await apiClient.get(`/invitations/${token}/`);
     return res.data.data || res.data;

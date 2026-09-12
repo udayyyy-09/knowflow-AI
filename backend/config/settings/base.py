@@ -183,8 +183,8 @@ REST_FRAMEWORK = {
 # -----------------------------------------------------------------------------
 # SimpleJWT Configuration
 # -----------------------------------------------------------------------------
-ACCESS_TOKEN_MINUTES = env.int('JWT_ACCESS_TOKEN_LIFETIME_MINUTES', default=30)
-REFRESH_TOKEN_DAYS = env.int('JWT_REFRESH_TOKEN_LIFETIME_DAYS', default=7)
+ACCESS_TOKEN_MINUTES = env.int('JWT_ACCESS_TOKEN_LIFETIME_MINUTES', default=60)
+REFRESH_TOKEN_DAYS = env.int('JWT_REFRESH_TOKEN_LIFETIME_DAYS', default=14)
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=ACCESS_TOKEN_MINUTES),
@@ -308,11 +308,15 @@ RAG_WORKSPACE_RATE_LIMIT = env.int('RAG_WORKSPACE_RATE_LIMIT', default=60)
 # Frontend URL & Email Delivery Configuration
 # -----------------------------------------------------------------------------
 FRONTEND_URL = env('FRONTEND_URL', default='http://localhost:5173')
-EMAIL_BACKEND = env('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')
+EMAIL_BACKEND = env('EMAIL_BACKEND', default='apps.common.email_backend.SmartEmailBackend')
 DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='KnowFlow AI <noreply@knowflow.ai>')
+RESEND_API_KEY = env('RESEND_API_KEY', default='')
+VERIFIED_EMAIL_DOMAIN = env.bool('VERIFIED_EMAIL_DOMAIN', default=False)
 EMAIL_HOST = env('EMAIL_HOST', default='smtp.gmail.com')
 EMAIL_PORT = env.int('EMAIL_PORT', default=587)
 EMAIL_USE_TLS = env.bool('EMAIL_USE_TLS', default=True)
+EMAIL_USE_SSL = env.bool('EMAIL_USE_SSL', default=False)
 EMAIL_HOST_USER = env('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default='')
+EMAIL_TIMEOUT = env.int('EMAIL_TIMEOUT', default=15)
 

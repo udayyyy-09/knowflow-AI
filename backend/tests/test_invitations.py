@@ -32,13 +32,14 @@ class TestWorkspaceInvitations:
         assert response.data["data"]["email"] == "new.teammate@company.com"
         assert response.data["data"]["role"] == WorkspaceRole.MANAGER
         assert response.data["data"]["status"] == InvitationStatus.PENDING
-        assert len(response.data["data"]["token"]) > 20
+        assert "token" not in response.data["data"]
 
         # Verify in database
         inv = WorkspaceInvitation.objects.filter(workspace=workspace, email="new.teammate@company.com").first()
         assert inv is not None
         assert inv.status == InvitationStatus.PENDING
         assert inv.role == WorkspaceRole.MANAGER
+        assert len(inv.token) > 20
 
     def test_manager_cannot_send_invitation(self, manager_client, workspace):
         url = reverse('workspaces:workspace-invitations', kwargs={'workspace_id': workspace.id})
@@ -142,3 +143,46 @@ class TestWorkspaceInvitations:
         assert response.status_code == status.HTTP_200_OK
         inv.refresh_from_db()
         assert inv.status == InvitationStatus.CANCELLED
+
+    def test_list_invitations_omits_token_for_owasp_compliance(self, admin_client, workspace, workspace_admin):
+        """Ensure GET /workspaces/{id}/invitations/ never exposes raw tokens (OWASP API3)."""
+        WorkspaceInvitation.objects.create(
+            workspace=workspace,
+            email="sensitive.user@company.com",
+            role=WorkspaceRole.EMPLOYEE,
+            invited_by=workspace_admin,
+            status=InvitationStatus.PENDING
+        )
+        url = reverse('workspaces:workspace-invitations', kwargs={'workspace_id': workspace.id})
+        response = admin_client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["success"] is True
+        assert len(response.data["data"]) >= 1
+        for item in response.data["data"]:
+            assert "token" not in item
+            assert item["email"] == "sensitive.user@company.com"
+
+    def test_admin_can_resend_invitation(self, admin_client, workspace, workspace_admin):
+        """Ensure POST /workspaces/{id}/invitations/{id}/resend/ refreshes expiration date without exposing token."""
+        inv = WorkspaceInvitation.objects.create(
+            workspace=workspace,
+            email="resend.user@company.com",
+            role=WorkspaceRole.MANAGER,
+            invited_by=workspace_admin,
+            status=InvitationStatus.PENDING,
+            expires_at=timezone.now() + timedelta(days=1)
+        )
+        url = reverse('workspaces:workspace-invitation-resend', kwargs={
+            'workspace_id': workspace.id,
+            'id': inv.id
+        })
+        response = admin_client.post(url, format='json')
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["success"] is True
+        assert "token" not in response.data["data"]
+
+        inv.refresh_from_db()
+        # Verify expiration extended ~7 days from now
+        assert inv.expires_at > timezone.now() + timedelta(days=6)

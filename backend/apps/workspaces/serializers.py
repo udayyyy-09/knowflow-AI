@@ -155,6 +155,7 @@ class WorkspaceMemberUpdateSerializer(serializers.ModelSerializer):
 class WorkspaceInvitationSerializer(serializers.ModelSerializer):
     """
     Serializer for displaying workspace invitations in the workspace management roster.
+    Ommits the raw cryptographic token to prevent credential exposure (OWASP API3).
     """
     invited_by_email = serializers.EmailField(source='invited_by.email', read_only=True)
     invited_by_name = serializers.SerializerMethodField()
@@ -169,7 +170,6 @@ class WorkspaceInvitationSerializer(serializers.ModelSerializer):
             'status',
             'invited_by_email',
             'invited_by_name',
-            'token',
             'expires_at',
             'created_at',
             'accepted_at',
@@ -180,7 +180,6 @@ class WorkspaceInvitationSerializer(serializers.ModelSerializer):
             'status',
             'invited_by_email',
             'invited_by_name',
-            'token',
             'expires_at',
             'created_at',
             'accepted_at',

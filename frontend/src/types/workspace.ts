@@ -36,7 +36,7 @@ export interface WorkspaceInvitation {
   status: InvitationStatus;
   invited_by_email: string;
   invited_by_name: string;
-  token: string;
+  token?: string;
   expires_at: string;
   created_at: string;
   accepted_at?: string;
