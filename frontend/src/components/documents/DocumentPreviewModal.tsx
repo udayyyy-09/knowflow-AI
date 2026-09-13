@@ -213,7 +213,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
             </div>
           ) : isPdf && blobUrl ? (
             <iframe
-              src={`${blobUrl}#toolbar=1&navpanes=1`}
+              src={`${blobUrl}#toolbar=0&navpanes=1`}
               className="w-full h-full border-0 bg-white"
               title={document.title}
             />
