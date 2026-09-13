@@ -63,16 +63,29 @@ export const documentsApi = {
   },
 
   async downloadFileBlob(workspaceId: string, documentId: string, inline = false): Promise<{ blob: Blob; filename: string }> {
-    const res = await apiClient.get(`/workspaces/${workspaceId}/documents/${documentId}/download/`, {
-      params: { inline: inline ? 'true' : 'false' },
-      responseType: 'blob',
-    });
-    const disposition = res.headers['content-disposition'] || '';
-    let filename = 'document';
-    const match = disposition.match(/filename=["']?([^"';]+)["']?/);
-    if (match && match[1]) {
-      filename = match[1];
+    try {
+      const res = await apiClient.get(`/workspaces/${workspaceId}/documents/${documentId}/download/`, {
+        params: { inline: inline ? 'true' : 'false' },
+        responseType: 'blob',
+      });
+      const disposition = res.headers['content-disposition'] || '';
+      let filename = 'document';
+      const match = disposition.match(/filename=["']?([^"';]+)["']?/);
+      if (match && match[1]) {
+        filename = match[1];
+      }
+      return { blob: res.data, filename };
+    } catch (err: any) {
+      if (err?.response?.data instanceof Blob) {
+        try {
+          const text = await err.response.data.text();
+          const json = JSON.parse(text);
+          err.response.data = json;
+        } catch {
+          // ignore parsing error
+        }
+      }
+      throw err;
     }
-    return { blob: res.data, filename };
   }
 };

@@ -313,17 +313,57 @@ class DocumentDownloadView(APIView):
 
         active_version = document.active_version
         if not active_version or not active_version.file:
-            raise Http404("No active file version exists for this document.")
+            return Response(
+                {
+                    "success": False,
+                    "error": {
+                        "code": "NO_ACTIVE_VERSION",
+                        "message": "No active file version exists for this document.",
+                        "details": None
+                    }
+                },
+                status=status.HTTP_404_NOT_FOUND
+            )
 
-        file_handle = active_version.file.open('rb')
         disposition = 'inline' if is_inline else 'attachment'
-        response = FileResponse(
-            file_handle,
-            content_type=active_version.mime_type or 'application/octet-stream'
-        )
-        response['Content-Disposition'] = f'{disposition}; filename="{active_version.original_filename}"'
-        response['Content-Length'] = active_version.file_size_bytes
-        return response
+
+        try:
+            file_handle = active_version.file.open('rb')
+            response = FileResponse(
+                file_handle,
+                content_type=active_version.mime_type or 'application/octet-stream'
+            )
+            response['Content-Disposition'] = f'{disposition}; filename="{active_version.original_filename}"'
+            response['Content-Length'] = active_version.file_size_bytes
+            return response
+        except (FileNotFoundError, OSError, ValueError):
+            # If in inline preview mode and the ephemeral container lost the raw file,
+            # reconstruct text from indexed chunks stored in PostgreSQL database
+            chunks = DocumentChunk.objects.filter(version=active_version).order_by('chunk_index')
+            if chunks.exists():
+                reconstructed_text = "\n\n".join(c.content for c in chunks)
+                import io
+                buffer = io.BytesIO(reconstructed_text.encode('utf-8'))
+                mime = 'text/plain; charset=utf-8' if active_version.file_type in ('TXT', 'CSV') else 'text/markdown; charset=utf-8'
+                response = FileResponse(
+                    buffer,
+                    content_type=mime
+                )
+                response['Content-Disposition'] = f'inline; filename="{active_version.original_filename}"'
+                response['Content-Length'] = len(reconstructed_text.encode('utf-8'))
+                return response
+
+            return Response(
+                {
+                    "success": False,
+                    "error": {
+                        "code": "FILE_NOT_FOUND",
+                        "message": f"Source file '{active_version.original_filename}' is not available on this server storage. Please re-upload the document.",
+                        "details": None
+                    }
+                },
+                status=status.HTTP_404_NOT_FOUND
+            )
 
 
 class DocumentChunkListView(generics.ListAPIView):

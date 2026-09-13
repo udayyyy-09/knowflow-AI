@@ -9,7 +9,7 @@ import { Button } from '@/components/common/Button';
 import { 
   UploadCloud, 
   Files, 
-  Sparkles, 
+  HardDrive, 
   CheckCircle2, 
   RefreshCw,
   AlertTriangle,
@@ -155,6 +155,21 @@ export const DocumentsView: React.FC = () => {
     (d) => d.status === 'READY' || d.status === 'PROCESSED' || d.status === 'COMPLETED'
   ).length;
 
+  const totalSizeBytes = documents.reduce((acc, doc) => {
+    const bytes = doc.active_version?.file_size_bytes || doc.latest_version?.file_size_bytes || 0;
+    return acc + bytes;
+  }, 0);
+
+  const formatTotalSize = (bytes: number) => {
+    if (bytes === 0) return '0 KB';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+  };
+
+  const totalStorageFormatted = formatTotalSize(totalSizeBytes);
+
   return (
     <div className="flex-1 overflow-y-auto p-3.5 sm:p-6 md:p-8 space-y-6 sm:space-y-8 max-w-7xl mx-auto w-full bg-[#F6F5F0] relative">
       {/* Floating Toast Notification in Top-Right Corner */}
@@ -249,11 +264,11 @@ export const DocumentsView: React.FC = () => {
 
         <div className="bg-white p-4 rounded-xl border border-[#DDD9CC] flex items-center gap-4 shadow-xs">
           <div className="w-12 h-12 rounded-xl bg-[#A9772F]/10 border border-[#A9772F]/20 text-[#8C5D1E] flex items-center justify-center shrink-0">
-            <Sparkles className="w-6 h-6" />
+            <HardDrive className="w-6 h-6" />
           </div>
           <div>
-            <div className="text-2xl font-bold text-[#1B1F27]">Full Search</div>
-            <div className="text-xs text-[#5B6270]">RAG Grounded Citations</div>
+            <div className="text-2xl font-bold text-[#1B1F27]">{totalStorageFormatted}</div>
+            <div className="text-xs text-[#5B6270]">Total Knowledge Storage</div>
           </div>
         </div>
       </div>

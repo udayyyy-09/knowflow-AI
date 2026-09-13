@@ -75,7 +75,8 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
       })
       .catch((err: any) => {
         console.error('Failed to load preview stream:', err);
-        setError('Failed to load document content for preview.');
+        const msg = err?.response?.data?.error?.message || err?.response?.data?.detail || 'Failed to load document content for preview.';
+        setError(msg);
       })
       .finally(() => {
         setLoading(false);
