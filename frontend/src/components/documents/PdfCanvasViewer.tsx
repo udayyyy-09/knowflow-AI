@@ -39,16 +39,14 @@ const PdfPage: React.FC<PdfPageProps> = ({ pdfDoc, pageNumber }) => {
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
-        // Scale to 1.3 for crisp HiDPI viewing
-        const viewport = page.getViewport({ scale: 1.3 });
-        const pixelRatio = window.devicePixelRatio || 1;
+        const pixelRatio = Math.max(window.devicePixelRatio || 1, 1);
+        const scale = 1.2;
+        const viewport = page.getViewport({ scale: scale * pixelRatio });
 
-        canvas.width = viewport.width * pixelRatio;
-        canvas.height = viewport.height * pixelRatio;
-        canvas.style.width = `${viewport.width}px`;
-        canvas.style.height = `${viewport.height}px`;
-
-        ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+        canvas.width = Math.floor(viewport.width);
+        canvas.height = Math.floor(viewport.height);
+        canvas.style.width = `${Math.floor(viewport.width / pixelRatio)}px`;
+        canvas.style.height = `${Math.floor(viewport.height / pixelRatio)}px`;
 
         renderTask = page.render({
           canvasContext: ctx,
@@ -77,14 +75,15 @@ const PdfPage: React.FC<PdfPageProps> = ({ pdfDoc, pageNumber }) => {
   }, [pdfDoc, pageNumber]);
 
   return (
-    <div className="relative bg-white shadow-md rounded-md border border-[#DDD9CC] overflow-hidden flex flex-col items-center">
+    <div className="relative bg-white shadow-xl rounded-lg border border-[#DDD9CC] overflow-hidden flex flex-col items-center">
       {!rendered && (
-        <div className="w-full h-96 flex items-center justify-center bg-[#F6F5F0]/50">
+        <div className="w-[650px] h-[850px] max-w-full flex flex-col items-center justify-center bg-[#F6F5F0]/60 gap-2">
           <Spinner size="md" />
+          <span className="text-xs text-[#5B6270] font-medium">Rendering page {pageNumber}...</span>
         </div>
       )}
-      <canvas ref={canvasRef} className={`block ${rendered ? '' : 'hidden'}`} />
-      <div className="w-full text-center py-1.5 text-[11px] font-mono text-[#8C93A0] bg-[#FAFAF7] border-t border-[#EEEBE2]">
+      <canvas ref={canvasRef} className={`block max-w-full ${rendered ? '' : 'hidden'}`} />
+      <div className="w-full text-center py-2 text-xs font-mono text-[#5B6270] bg-[#FAFAF7] border-t border-[#EEEBE2] font-medium">
         Page {pageNumber} of {pdfDoc.numPages}
       </div>
     </div>
