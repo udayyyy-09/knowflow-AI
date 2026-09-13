@@ -107,6 +107,7 @@ export const PdfCanvasViewer: React.FC<PdfCanvasViewerProps> = ({ blob }) => {
           data: new Uint8Array(arrayBuffer),
           cMapUrl: `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/cmaps/`,
           cMapPacked: true,
+          standardFontDataUrl: `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/standard_fonts/`,
         });
 
         const doc = await loadingTask.promise;
