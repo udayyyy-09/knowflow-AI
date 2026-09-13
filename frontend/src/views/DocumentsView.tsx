@@ -4,17 +4,19 @@ import { documentsApi } from '@/api/documents';
 import type { Document } from '@/types/document';
 import { DocumentList } from '@/components/documents/DocumentList';
 import { DocumentUploadModal } from '@/components/documents/DocumentUploadModal';
-import { ChunkDrawer } from '@/components/documents/ChunkDrawer';
+import { DocumentPreviewModal } from '@/components/documents/DocumentPreviewModal';
 import { Button } from '@/components/common/Button';
 import { 
   UploadCloud, 
   Files, 
-  Layers, 
+  Sparkles, 
   CheckCircle2, 
   RefreshCw,
-  AlertTriangle
+  AlertTriangle,
+  AlertCircle,
+  Check,
+  X
 } from 'lucide-react';
-
 import { clientCache } from '@/utils/clientCache';
 
 export const DocumentsView: React.FC = () => {
@@ -27,13 +29,24 @@ export const DocumentsView: React.FC = () => {
   const [loading, setLoading] = useState(!initialCachedDocs);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   
-  // Chunk inspection drawer state
-  const [selectedDocForChunks, setSelectedDocForChunks] = useState<Document | null>(null);
+  // Document preview modal state
+  const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
   
   // Delete confirm state
   const [docToDelete, setDocToDelete] = useState<Document | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Floating Toast Notification
+  const [toast, setToast] = useState<{ type: 'success' | 'warning' | 'error'; message: string } | null>(null);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => {
+      setToast(null);
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [toast]);
 
   const fetchDocuments = useCallback(async (showLoading = true) => {
     if (!activeWorkspace || !activeWorkspace.id) return;
@@ -63,7 +76,6 @@ export const DocumentsView: React.FC = () => {
   };
 
   useEffect(() => {
-    // If cached data exists, revalidate quietly; otherwise show loader
     const hasCache = !!clientCache.get(cacheKey);
     fetchDocuments(!hasCache);
   }, [fetchDocuments, cacheKey]);
@@ -88,6 +100,39 @@ export const DocumentsView: React.FC = () => {
     return () => clearInterval(interval);
   }, [documents, fetchDocuments]);
 
+  const handleDownload = async (doc: Document) => {
+    if (!activeWorkspace || !activeWorkspace.id) return;
+
+    // RBAC Check: Only Admins can download source files
+    if (userRole !== 'ADMIN') {
+      setToast({
+        type: 'warning',
+        message: 'Only workspace admins can download source documents',
+      });
+      return;
+    }
+
+    try {
+      const { blob, filename } = await documentsApi.downloadFileBlob(activeWorkspace.id, doc.id, false);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename || `${doc.title}.${doc.file_type.toLowerCase()}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      setToast({ type: 'success', message: `Downloaded "${doc.title}"` });
+    } catch (err: any) {
+      console.error('Failed to download document:', err);
+      const errMsg =
+        err?.response?.data?.error?.message ||
+        err?.response?.data?.detail ||
+        'Only workspace admins can download source documents';
+      setToast({ type: 'error', message: errMsg });
+    }
+  };
+
   const handleDeleteConfirm = async () => {
     if (!activeWorkspace || !activeWorkspace.id || !docToDelete) return;
     setIsDeleting(true);
@@ -95,21 +140,55 @@ export const DocumentsView: React.FC = () => {
       await documentsApi.delete(activeWorkspace.id, docToDelete.id);
       setDocToDelete(null);
       await fetchDocuments(false);
-    } catch (err) {
+      setToast({ type: 'success', message: 'Document removed from workspace' });
+    } catch (err: any) {
       console.error('Failed to delete document:', err);
+      const errMsg = err?.response?.data?.error?.message || err?.response?.data?.detail || 'Failed to delete document';
+      setToast({ type: 'error', message: errMsg });
     } finally {
       setIsDeleting(false);
     }
   };
 
   // Stats calculation
-  const totalChunks = documents.reduce((acc, doc) => acc + (doc.chunks_count ?? doc.chunk_count ?? 0), 0);
   const processedDocs = documents.filter(
     (d) => d.status === 'READY' || d.status === 'PROCESSED' || d.status === 'COMPLETED'
   ).length;
 
   return (
-    <div className="flex-1 overflow-y-auto p-3.5 sm:p-6 md:p-8 space-y-6 sm:space-y-8 max-w-7xl mx-auto w-full bg-[#F6F5F0]">
+    <div className="flex-1 overflow-y-auto p-3.5 sm:p-6 md:p-8 space-y-6 sm:space-y-8 max-w-7xl mx-auto w-full bg-[#F6F5F0] relative">
+      {/* Floating Toast Notification in Top-Right Corner */}
+      {toast && (
+        <div className="fixed top-5 right-5 z-50 max-w-md w-auto animate-in slide-in-from-top-3 fade-in duration-300">
+          <div
+            className={`flex items-center gap-3 px-4 py-3.5 rounded-xl shadow-xl border text-sm font-medium transition-all ${
+              toast.type === 'success'
+                ? 'bg-[#1B1F27] text-white border-[rgba(46,111,94,0.4)] shadow-[0_10px_30px_rgba(0,0,0,0.25)]'
+                : toast.type === 'warning'
+                ? 'bg-amber-950 text-amber-50 border-amber-800 shadow-[0_10px_30px_rgba(217,119,6,0.25)]'
+                : 'bg-red-950 text-red-50 border-red-800 shadow-[0_10px_30px_rgba(220,38,38,0.25)]'
+            }`}
+          >
+            {toast.type === 'success' ? (
+              <div className="w-6 h-6 rounded-full bg-[#2E6F5E] flex items-center justify-center shrink-0">
+                <Check className="w-3.5 h-3.5 text-white stroke-[2.5]" />
+              </div>
+            ) : (
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${toast.type === 'warning' ? 'bg-amber-600' : 'bg-red-600'}`}>
+                <AlertCircle className="w-3.5 h-3.5 text-white stroke-[2.5]" />
+              </div>
+            )}
+            <span className="flex-1 pr-1">{toast.message}</span>
+            <button
+              onClick={() => setToast(null)}
+              className="p-1 rounded-lg hover:bg-white/10 text-white/70 hover:text-white transition cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Top Banner & Stats */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -117,7 +196,7 @@ export const DocumentsView: React.FC = () => {
             Knowledge Document Hub
           </h1>
           <p className="text-sm text-[#5B6270] mt-1">
-            Ingest, manage, and inspect text embeddings powering your workspace RAG search.
+            Ingest, preview, and organize knowledge assets powering your workspace RAG search.
           </p>
         </div>
 
@@ -127,7 +206,7 @@ export const DocumentsView: React.FC = () => {
             size="md"
             onClick={handleRefresh}
             disabled={isRefreshing}
-            className="flex items-center border-[#DDD9CC] bg-white hover:bg-[#F6F5F0] text-[#1B1F27] text-xs sm:text-sm font-medium shadow-xs"
+            className="flex items-center border-[#DDD9CC] bg-white hover:bg-[#F6F5F0] text-[#1B1F27] text-xs sm:text-sm font-medium shadow-xs cursor-pointer"
             title="Refresh document processing status"
           >
             <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-[#2E6F5E]' : 'text-[#5B6270]'}`} />
@@ -164,17 +243,17 @@ export const DocumentsView: React.FC = () => {
           </div>
           <div>
             <div className="text-2xl font-bold text-[#1B1F27]">{processedDocs}</div>
-            <div className="text-xs text-[#5B6270]">Indexed & Searchable</div>
+            <div className="text-xs text-[#5B6270]">Search-Ready Documents</div>
           </div>
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-[#DDD9CC] flex items-center gap-4 shadow-xs">
           <div className="w-12 h-12 rounded-xl bg-[#A9772F]/10 border border-[#A9772F]/20 text-[#8C5D1E] flex items-center justify-center shrink-0">
-            <Layers className="w-6 h-6" />
+            <Sparkles className="w-6 h-6" />
           </div>
           <div>
-            <div className="text-2xl font-bold text-[#1B1F27]">{totalChunks}</div>
-            <div className="text-xs text-[#5B6270]">Total Vector Chunks</div>
+            <div className="text-2xl font-bold text-[#1B1F27]">Full Search</div>
+            <div className="text-xs text-[#5B6270]">RAG Grounded Citations</div>
           </div>
         </div>
       </div>
@@ -184,7 +263,8 @@ export const DocumentsView: React.FC = () => {
         documents={documents}
         loading={loading}
         canManageDocs={canManageDocs}
-        onInspectChunks={(doc) => setSelectedDocForChunks(doc)}
+        onPreview={(doc) => setPreviewDoc(doc)}
+        onDownload={(doc) => handleDownload(doc)}
         onDelete={(doc) => setDocToDelete(doc)}
         onOpenUpload={() => setIsUploadOpen(true)}
       />
@@ -198,12 +278,12 @@ export const DocumentsView: React.FC = () => {
         }}
       />
 
-      {/* Chunk Inspection Drawer */}
-      <ChunkDrawer
-        documentId={selectedDocForChunks?.id || null}
-        documentTitle={selectedDocForChunks?.title || ''}
-        isOpen={!!selectedDocForChunks}
-        onClose={() => setSelectedDocForChunks(null)}
+      {/* Document Preview Modal */}
+      <DocumentPreviewModal
+        document={previewDoc}
+        isOpen={!!previewDoc}
+        onClose={() => setPreviewDoc(null)}
+        onDownloadClick={(doc) => handleDownload(doc)}
       />
 
       {/* Delete Confirmation Dialog */}
@@ -221,7 +301,7 @@ export const DocumentsView: React.FC = () => {
               <h3 className="text-lg font-bold text-[#1B1F27]">Delete Document?</h3>
             </div>
             <p className="text-sm text-[#5B6270]">
-              Are you sure you want to delete <span className="font-semibold text-[#1B1F27]">"{docToDelete.title}"</span>? This will permanently remove all associated vector embeddings from pgvector.
+              Are you sure you want to delete <span className="font-semibold text-[#1B1F27]">"{docToDelete.title}"</span>? This will permanently remove all associated vector embeddings from the workspace.
             </p>
             <div className="flex items-center justify-end gap-3 pt-2">
               <Button
@@ -245,3 +325,4 @@ export const DocumentsView: React.FC = () => {
     </div>
   );
 };
+

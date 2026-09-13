@@ -149,7 +149,7 @@ class TestDocumentListingAndDetail:
 
 @pytest.mark.django_db
 class TestDocumentDownload:
-    """Tests for streaming document download."""
+    """Tests for streaming document download and inline preview permissions."""
 
     def test_download_active_version_with_bearer(self, workspace, workspace_admin, workspace_employee):
         admin_client = make_client_for_user(workspace_admin)
@@ -157,14 +157,28 @@ class TestDocumentDownload:
         res = admin_client.post(upload_url, {'file': create_dummy_file('test_dl.pdf', b'PDF STREAM CONTENT')}, format='multipart')
         doc_id = res.data['data']['id']
 
-        emp_client = make_client_for_user(workspace_employee)
         download_url = reverse('workspaces:documents:document-download', kwargs={'workspace_id': workspace.id, 'document_id': doc_id})
 
-        dl_res = emp_client.get(download_url)
-        assert dl_res.status_code == status.HTTP_200_OK
-        assert dl_res['Content-Disposition'].startswith('attachment;')
-        content_bytes = b"".join(dl_res.streaming_content)
+        # 1. Admin can download file as attachment
+        admin_dl_res = admin_client.get(download_url)
+        assert admin_dl_res.status_code == status.HTTP_200_OK
+        assert admin_dl_res['Content-Disposition'].startswith('attachment;')
+        content_bytes = b"".join(admin_dl_res.streaming_content)
         assert b'PDF STREAM CONTENT' in content_bytes
+
+        # 2. Employee cannot download attachment (Admin only)
+        emp_client = make_client_for_user(workspace_employee)
+        emp_dl_res = emp_client.get(download_url)
+        assert emp_dl_res.status_code == status.HTTP_403_FORBIDDEN
+        assert emp_dl_res.data['error']['code'] == 'ADMIN_ONLY_DOWNLOAD'
+
+        # 3. Employee can stream document inline for viewing/previewing (?inline=true)
+        emp_preview_res = emp_client.get(f"{download_url}?inline=true")
+        assert emp_preview_res.status_code == status.HTTP_200_OK
+        assert emp_preview_res['Content-Disposition'].startswith('inline;')
+        preview_bytes = b"".join(emp_preview_res.streaming_content)
+        assert b'PDF STREAM CONTENT' in preview_bytes
+
 
 
 @pytest.mark.django_db

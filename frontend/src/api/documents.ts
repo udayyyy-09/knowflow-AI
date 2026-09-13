@@ -52,5 +52,27 @@ export const documentsApi = {
   async reprocess(workspaceId: string, documentId: string): Promise<void> {
     if (!workspaceId || workspaceId === 'undefined') return;
     await apiClient.post(`/workspaces/${workspaceId}/documents/${documentId}/reprocess/`);
+  },
+
+  getDownloadUrl(workspaceId: string, documentId: string, inline = false): string {
+    const token = localStorage.getItem('knowflow_access_token');
+    const apiBase = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+    const base = apiBase.startsWith('http') ? apiBase : `${window.location.origin}${apiBase}`;
+    const url = `${base}/workspaces/${workspaceId}/documents/${documentId}/download/?inline=${inline ? 'true' : 'false'}`;
+    return token ? `${url}&token=${encodeURIComponent(token)}` : url;
+  },
+
+  async downloadFileBlob(workspaceId: string, documentId: string, inline = false): Promise<{ blob: Blob; filename: string }> {
+    const res = await apiClient.get(`/workspaces/${workspaceId}/documents/${documentId}/download/`, {
+      params: { inline: inline ? 'true' : 'false' },
+      responseType: 'blob',
+    });
+    const disposition = res.headers['content-disposition'] || '';
+    let filename = 'document';
+    const match = disposition.match(/filename=["']?([^"';]+)["']?/);
+    if (match && match[1]) {
+      filename = match[1];
+    }
+    return { blob: res.data, filename };
   }
 };

@@ -234,6 +234,11 @@ CORS_ALLOW_HEADERS = [
     'x-csrftoken',
     'x-requested-with',
 ]
+CORS_EXPOSE_HEADERS = [
+    'content-disposition',
+    'content-length',
+    'content-type',
+]
 
 # -----------------------------------------------------------------------------
 # Celery & Redis Configuration

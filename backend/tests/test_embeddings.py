@@ -126,6 +126,7 @@ class TestEmbeddingProviders:
             provider.embed_text("Gemini query")
 
     def test_local_fastembed_provider(self):
+        pytest.importorskip("fastembed")
         provider = LocalFastEmbedProvider(model_name="BAAI/bge-small-en-v1.5", dimensions=384)
         assert provider.get_dimensions() == 384
         assert provider.get_model_name() == "BAAI/bge-small-en-v1.5"

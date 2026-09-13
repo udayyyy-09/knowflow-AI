@@ -6,12 +6,12 @@ import {
   FileText, 
   FileCode, 
   FileSpreadsheet, 
-  Layers, 
   Trash2, 
   Search, 
   Calendar, 
-  HardDrive,
-  UploadCloud
+  UploadCloud,
+  Eye,
+  Download
 } from 'lucide-react';
 import { Spinner } from '@/components/common/Spinner';
 
@@ -19,7 +19,8 @@ interface DocumentListProps {
   documents: Document[];
   loading: boolean;
   canManageDocs?: boolean;
-  onInspectChunks: (doc: Document) => void;
+  onPreview: (doc: Document) => void;
+  onDownload: (doc: Document) => void;
   onDelete: (doc: Document) => void;
   onOpenUpload: () => void;
 }
@@ -28,7 +29,8 @@ export const DocumentList: React.FC<DocumentListProps> = ({
   documents,
   loading,
   canManageDocs = false,
-  onInspectChunks,
+  onPreview,
+  onDownload,
   onDelete,
   onOpenUpload,
 }) => {
@@ -38,16 +40,23 @@ export const DocumentList: React.FC<DocumentListProps> = ({
   const getFileIcon = (fileType: string) => {
     switch (fileType?.toUpperCase()) {
       case 'PDF':
-        return <FileText className="w-5 h-5 text-red-400" />;
+        return <FileText className="w-5 h-5 text-red-500" />;
       case 'CSV':
-        return <FileSpreadsheet className="w-5 h-5 text-emerald-400" />;
+        return <FileSpreadsheet className="w-5 h-5 text-emerald-500" />;
       case 'MD':
       case 'TXT':
       case 'MARKDOWN':
-        return <FileCode className="w-5 h-5 text-blue-400" />;
+        return <FileCode className="w-5 h-5 text-blue-500" />;
       default:
-        return <FileText className="w-5 h-5 text-brand-400" />;
+        return <FileText className="w-5 h-5 text-[#2E6F5E]" />;
     }
+  };
+
+  const formatFileSize = (bytes?: number) => {
+    if (!bytes) return null;
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
   const filteredDocs = documents.filter((doc) => {
@@ -103,7 +112,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({
             <button
               key={status}
               onClick={() => setStatusFilter(status)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
                 statusFilter === status
                   ? 'bg-[#1B1F27] text-white shadow-xs'
                   : 'bg-white text-[#5B6270] hover:text-[#1B1F27] border border-[#DDD9CC]'
@@ -146,7 +155,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredDocs.map((doc) => {
-            const count = doc.chunks_count ?? doc.chunk_count ?? doc.active_version?.chunks_count ?? doc.latest_version?.chunks_count ?? 0;
+            const size = formatFileSize(doc.active_version?.file_size_bytes || doc.latest_version?.file_size_bytes);
             return (
               <div
                 key={doc.id}
@@ -171,14 +180,15 @@ export const DocumentList: React.FC<DocumentListProps> = ({
 
                   <div className="space-y-1.5 text-xs text-[#5B6270] mb-4">
                     <div className="flex items-center gap-2">
-                      <HardDrive className="w-3.5 h-3.5 text-[#8C93A0]" />
-                      <span>
-                        {count} {count === 1 ? 'Chunk' : 'Chunks'} Indexed
-                      </span>
-                      <span>•</span>
-                      <span className="uppercase font-mono text-[10px] bg-[#F6F5F0] px-1.5 py-0.5 rounded border border-[#DDD9CC] text-[#1B1F27]">
+                      <span className="uppercase font-mono text-[10px] bg-[#F6F5F0] px-2 py-0.5 rounded border border-[#DDD9CC] text-[#1B1F27] font-semibold">
                         {doc.file_type}
                       </span>
+                      {size && (
+                        <>
+                          <span>•</span>
+                          <span className="font-mono text-[#5B6270]">{size}</span>
+                        </>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <Calendar className="w-3.5 h-3.5 text-[#8C93A0]" />
@@ -187,19 +197,36 @@ export const DocumentList: React.FC<DocumentListProps> = ({
                   </div>
                 </div>
 
-                {/* Bottom Actions (Admins / Managers only) */}
-                {canManageDocs && (
-                  <div className="pt-3 border-t border-[#DDD9CC]/60 flex items-center justify-between gap-2">
+                {/* Bottom Actions: View (Eye) + Download + Delete */}
+                <div className="pt-3 border-t border-[#DDD9CC]/60 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 flex-1">
+                    {/* View / Preview Button (Eye Icon) */}
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => onInspectChunks(doc)}
-                      className="text-xs flex items-center gap-1.5 flex-1 justify-center border-[#DDD9CC] hover:bg-[#F6F5F0]"
+                      onClick={() => onPreview(doc)}
+                      className="text-xs flex items-center gap-1.5 flex-1 justify-center border-[#DDD9CC] hover:bg-[#F6F5F0] text-[#1B1F27] font-medium"
+                      title="View document"
                     >
-                      <Layers className="w-3.5 h-3.5 text-[#2E6F5E]" />
-                      Chunks ({count})
+                      <Eye className="w-3.5 h-3.5 text-[#2E6F5E]" />
+                      <span>View</span>
                     </Button>
 
+                    {/* Download Button */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onDownload(doc)}
+                      className="text-xs flex items-center gap-1.5 border-[#DDD9CC] hover:bg-[#F6F5F0] text-[#1B1F27]"
+                      title="Download document"
+                    >
+                      <Download className="w-3.5 h-3.5 text-[#5B6270]" />
+                      <span className="hidden sm:inline">Download</span>
+                    </Button>
+                  </div>
+
+                  {/* Delete Button (Admins / Managers only) */}
+                  {canManageDocs && (
                     <Button
                       variant="ghost"
                       size="sm"
@@ -209,8 +236,8 @@ export const DocumentList: React.FC<DocumentListProps> = ({
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </Button>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             );
           })}
@@ -219,3 +246,4 @@ export const DocumentList: React.FC<DocumentListProps> = ({
     </div>
   );
 };
+

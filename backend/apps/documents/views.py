@@ -228,13 +228,20 @@ from rest_framework_simplejwt.tokens import AccessToken
 from django.contrib.auth import get_user_model
 from apps.workspaces.models import WorkspaceMembership
 
+from django.utils.decorators import method_decorator
+from django.views.decorators.clickjacking import xframe_options_exempt
+from apps.workspaces.permissions import get_user_workspace_role
+
 UserModel = get_user_model()
 
 
+@method_decorator(xframe_options_exempt, name='dispatch')
 class DocumentDownloadView(APIView):
     """
     GET /api/v1/workspaces/<workspace_id>/documents/<document_id>/download/
     Securely stream the active document file to authorized users.
+    - ?inline=true: Allows all workspace members (Admin, Manager, Employee) to preview the document.
+    - Standard download: Restricted to Workspace Admins.
     Supports Authorization Bearer header and ?token=<jwt> query parameter for browser direct links.
     """
     permission_classes = [permissions.AllowAny]
@@ -242,7 +249,7 @@ class DocumentDownloadView(APIView):
     def get(self, request, workspace_id, document_id):
         user = request.user
         if not user or not user.is_authenticated:
-            # Check query param token for browser direct downloads
+            # Check query param token for browser direct downloads / previews
             token_str = request.query_params.get('token')
             if token_str:
                 try:
@@ -265,20 +272,32 @@ class DocumentDownloadView(APIView):
                 status=status.HTTP_401_UNAUTHORIZED
             )
 
+        is_inline = request.query_params.get('inline', 'false').lower() in ('true', '1')
+
         # Check membership permissions
         if not user.is_superuser:
-            has_membership = WorkspaceMembership.objects.filter(
-                workspace_id=workspace_id,
-                user=user,
-                workspace__is_active=True
-            ).exists()
-            if not has_membership:
+            role = get_user_workspace_role(user, str(workspace_id))
+            if not role:
                 return Response(
                     {
                         "success": False,
                         "error": {
                             "code": "PERMISSION_DENIED",
                             "message": "You are not an authorized member of this workspace.",
+                            "details": None
+                        }
+                    },
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+            # Restrict file download attachment to Admins only
+            if not is_inline and role != 'ADMIN':
+                return Response(
+                    {
+                        "success": False,
+                        "error": {
+                            "code": "ADMIN_ONLY_DOWNLOAD",
+                            "message": "Only workspace admins can download source documents",
                             "details": None
                         }
                     },
@@ -297,11 +316,12 @@ class DocumentDownloadView(APIView):
             raise Http404("No active file version exists for this document.")
 
         file_handle = active_version.file.open('rb')
+        disposition = 'inline' if is_inline else 'attachment'
         response = FileResponse(
             file_handle,
             content_type=active_version.mime_type or 'application/octet-stream'
         )
-        response['Content-Disposition'] = f'attachment; filename="{active_version.original_filename}"'
+        response['Content-Disposition'] = f'{disposition}; filename="{active_version.original_filename}"'
         response['Content-Length'] = active_version.file_size_bytes
         return response
 
