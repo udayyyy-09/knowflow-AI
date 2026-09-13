@@ -4,7 +4,6 @@ import { documentsApi } from '@/api/documents';
 import { useWorkspace } from '@/context/WorkspaceContext';
 import { Button } from '@/components/common/Button';
 import { Spinner } from '@/components/common/Spinner';
-import { PdfCanvasViewer } from '@/components/documents/PdfCanvasViewer';
 import { 
   X, 
   Download, 
@@ -31,7 +30,6 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
 }) => {
   const { activeWorkspace, userRole } = useWorkspace();
   const [textContent, setTextContent] = useState<string | null>(null);
-  const [rawBlob, setRawBlob] = useState<Blob | null>(null);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +44,6 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
         URL.revokeObjectURL(blobUrl);
       }
       setTextContent(null);
-      setRawBlob(null);
       setBlobUrl(null);
       setError(null);
       setLoading(false);
@@ -60,7 +57,6 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
     documentsApi
       .downloadFileBlob(activeWorkspace.id, document.id, true)
       .then(async ({ blob }) => {
-        setRawBlob(blob);
         if (isTextBased) {
           const text = await blob.text();
           setTextContent(text);
@@ -215,8 +211,12 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                 <span>{error}</span>
               </div>
             </div>
-          ) : isPdf && rawBlob ? (
-            <PdfCanvasViewer blob={rawBlob} />
+          ) : isPdf && blobUrl ? (
+            <iframe
+              src={`${blobUrl}#toolbar=1&navpanes=1`}
+              className="w-full h-full border-0 bg-white"
+              title={document.title}
+            />
           ) : isTextBased ? (
             <div className="flex-1 overflow-y-auto p-5 sm:p-8 bg-white">
               <div className="max-w-4xl mx-auto bg-[#F6F5F0]/50 p-6 rounded-2xl border border-[#DDD9CC] font-mono text-xs sm:text-sm text-[#1B1F27] leading-relaxed whitespace-pre-wrap">
