@@ -10,7 +10,8 @@ export interface WorkspaceMembership {
     avatar_url?: string;
   };
   role: WorkspaceRole;
-  joined_at: string;
+  joined_at?: string;
+  created_at?: string;
 }
 
 export interface Workspace {

@@ -72,19 +72,19 @@ export const ChunkDrawer: React.FC<ChunkDrawerProps> = ({
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
+    <div className="fixed inset-0 z-50 flex justify-end overflow-hidden">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity"
+        className="fixed inset-0 bg-black/50 backdrop-blur-xs transition-opacity"
         onClick={onClose}
       />
 
       {/* Drawer Panel */}
-      <div className="relative w-full max-w-2xl bg-[#FDFCFA] border-l border-[#DDD9CC] shadow-2xl h-full flex flex-col z-10 animate-in slide-in-from-right duration-300">
+      <div className="relative w-full max-w-2xl bg-[#FDFCFA] border-l border-[#DDD9CC] shadow-2xl h-screen max-h-screen inset-y-0 top-0 right-0 bottom-0 flex flex-col z-10 animate-in slide-in-from-right duration-300 rounded-none overflow-hidden">
         {/* Drawer Header */}
-        <div className="p-6 border-b border-[#DDD9CC] flex items-center justify-between">
+        <div className="p-5 sm:p-6 border-b border-[#DDD9CC] flex items-center justify-between shrink-0 bg-[#FDFCFA]">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#2E6F5E]/10 border border-[#2E6F5E]/20 flex items-center justify-center text-[#2E6F5E]">
+            <div className="w-10 h-10 rounded-xl bg-[#2E6F5E]/10 border border-[#2E6F5E]/20 flex items-center justify-center text-[#2E6F5E] shrink-0">
               <Layers className="w-5 h-5" />
             </div>
             <div>
@@ -98,14 +98,15 @@ export const ChunkDrawer: React.FC<ChunkDrawerProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-lg text-[#5B6270] hover:text-[#1B1F27] hover:bg-[#F2EFE9] transition"
+            className="p-2 rounded-lg text-[#5B6270] hover:text-[#1B1F27] hover:bg-[#F2EFE9] transition cursor-pointer"
+            title="Close drawer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Stats & Search */}
-        <div className="p-4 border-b border-[#DDD9CC] bg-[#F6F5F0] space-y-3">
+        <div className="p-4 border-b border-[#DDD9CC] bg-[#F6F5F0] space-y-3 shrink-0">
           <div className="flex items-center justify-between text-xs text-[#5B6270]">
             <div className="flex items-center gap-2">
               <Badge variant="brand">{chunks.length} Total Chunks</Badge>

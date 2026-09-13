@@ -146,7 +146,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredDocs.map((doc) => {
-            const count = doc.chunks_count ?? doc.chunks_count ?? 0;
+            const count = doc.chunks_count ?? doc.chunk_count ?? doc.active_version?.chunks_count ?? doc.latest_version?.chunks_count ?? 0;
             return (
               <div
                 key={doc.id}

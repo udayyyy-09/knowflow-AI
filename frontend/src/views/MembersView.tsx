@@ -16,10 +16,14 @@ import {
   Send,
   XCircle,
   CheckCircle2,
-  Check
+  Check,
+  X,
+  Sparkles,
+  FileText,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { Spinner } from '@/components/common/Spinner';
-
 import { clientCache } from '@/utils/clientCache';
 
 export const MembersView: React.FC = () => {
@@ -35,6 +39,18 @@ export const MembersView: React.FC = () => {
   const [loading, setLoading] = useState(!initialCachedMembers);
   const [loadingInvitations, setLoadingInvitations] = useState(!initialCachedInvites && userRole === 'ADMIN');
   
+  // Floating Toast Notification
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  // Auto-dismiss toast after 4 seconds
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => {
+      setToast(null);
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
   // Invite Member Modal
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
@@ -54,6 +70,9 @@ export const MembersView: React.FC = () => {
   // Revoke Invitation Confirm
   const [invitationToRevoke, setInvitationToRevoke] = useState<WorkspaceInvitation | null>(null);
   const [isRevoking, setIsRevoking] = useState(false);
+
+  // Toggle Matrix comparison view
+  const [showFullMatrix, setShowFullMatrix] = useState(false);
 
   const fetchMembers = useCallback(async (showLoading = true) => {
     if (!activeWorkspace || !activeWorkspace.id) return;
@@ -136,8 +155,10 @@ export const MembersView: React.FC = () => {
       setResendSuccessId(invitationId);
       setTimeout(() => setResendSuccessId(null), 3000);
       fetchInvitations(false);
+      setToast({ type: 'success', message: 'Invitation email resent successfully' });
     } catch (err) {
       console.error('Failed to resend invitation email:', err);
+      setToast({ type: 'error', message: 'Failed to resend invitation email' });
     } finally {
       setResendingId(null);
     }
@@ -148,10 +169,23 @@ export const MembersView: React.FC = () => {
     try {
       await workspacesApi.updateMemberRole(activeWorkspace.id, memberId, newRole);
       setMembers((prev) =>
-        prev.map((m) => (m.id === memberId ? { ...m, role: newRole } : m))
+        prev.map((m) => (m.id === memberId || m.user?.id === memberId ? { ...m, role: newRole } : m))
       );
-    } catch (err) {
+      if (cacheKeyMembers) {
+        clientCache.invalidate(cacheKeyMembers);
+      }
+      setToast({ type: 'success', message: 'Role Changed Successfully' });
+    } catch (err: any) {
       console.error('Failed to update member role:', err);
+      const errMsg =
+        err?.response?.data?.non_field_errors?.[0] ||
+        err?.response?.data?.error?.message ||
+        err?.response?.data?.detail ||
+        err?.response?.data?.message ||
+        err?.response?.data?.role?.[0] ||
+        (Array.isArray(err?.response?.data) ? err?.response?.data[0] : null) ||
+        'Failed to update member role';
+      setToast({ type: 'error', message: errMsg });
     }
   };
 
@@ -159,11 +193,14 @@ export const MembersView: React.FC = () => {
     if (!activeWorkspace || !activeWorkspace.id || !memberToRemove) return;
     setIsRemoving(true);
     try {
-      await workspacesApi.removeMember(activeWorkspace.id, memberToRemove.id);
+      await workspacesApi.removeMember(activeWorkspace.id, memberToRemove.user?.id || memberToRemove.id);
       setMemberToRemove(null);
       fetchMembers();
-    } catch (err) {
+      setToast({ type: 'success', message: 'Member removed from workspace' });
+    } catch (err: any) {
       console.error('Failed to remove member:', err);
+      const errMsg = err?.response?.data?.error?.message || err?.response?.data?.detail || 'Failed to remove member';
+      setToast({ type: 'error', message: errMsg });
     } finally {
       setIsRemoving(false);
     }
@@ -176,17 +213,62 @@ export const MembersView: React.FC = () => {
       await workspacesApi.revokeInvitation(activeWorkspace.id, invitationToRevoke.id);
       setInvitationToRevoke(null);
       fetchInvitations();
+      setToast({ type: 'success', message: 'Invitation revoked successfully' });
     } catch (err) {
       console.error('Failed to revoke invitation:', err);
+      setToast({ type: 'error', message: 'Failed to revoke invitation' });
     } finally {
       setIsRevoking(false);
     }
   };
 
+  const formatDate = (dateStr?: string) => {
+    if (!dateStr) return 'Recently';
+    const d = new Date(dateStr);
+    return isNaN(d.getTime())
+      ? 'Recently'
+      : d.toLocaleDateString(undefined, {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+        });
+  };
+
   const isAdmin = userRole === 'ADMIN';
+  const effectiveRole = userRole || 'EMPLOYEE';
 
   return (
-    <div className="flex-1 overflow-y-auto p-3.5 sm:p-6 md:p-8 space-y-6 sm:space-y-8 max-w-7xl mx-auto w-full bg-[#F6F5F0]">
+    <div className="flex-1 overflow-y-auto p-3.5 sm:p-6 md:p-8 space-y-6 sm:space-y-8 max-w-7xl mx-auto w-full bg-[#F6F5F0] relative">
+      {/* Floating Toast Notification in Top-Right Corner */}
+      {toast && (
+        <div className="fixed top-5 right-5 z-50 max-w-md w-auto animate-in slide-in-from-top-3 fade-in duration-300">
+          <div
+            className={`flex items-center gap-3 px-4 py-3.5 rounded-xl shadow-xl border text-sm font-medium transition-all ${
+              toast.type === 'success'
+                ? 'bg-[#1B1F27] text-white border-[rgba(46,111,94,0.4)] shadow-[0_10px_30px_rgba(0,0,0,0.25)]'
+                : 'bg-red-950 text-red-50 border-red-800 shadow-[0_10px_30px_rgba(220,38,38,0.25)]'
+            }`}
+          >
+            {toast.type === 'success' ? (
+              <div className="w-6 h-6 rounded-full bg-[#2E6F5E] flex items-center justify-center shrink-0">
+                <Check className="w-3.5 h-3.5 text-white stroke-[2.5]" />
+              </div>
+            ) : (
+              <div className="w-6 h-6 rounded-full bg-red-600 flex items-center justify-center shrink-0">
+                <AlertCircle className="w-3.5 h-3.5 text-white stroke-[2.5]" />
+              </div>
+            )}
+            <span className="flex-1 pr-1">{toast.message}</span>
+            <button
+              onClick={() => setToast(null)}
+              className="p-1 rounded-lg hover:bg-white/10 text-white/70 hover:text-white transition cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -241,7 +323,7 @@ export const MembersView: React.FC = () => {
                 <tr>
                   <th className="px-6 py-3.5">User</th>
                   <th className="px-6 py-3.5">Role</th>
-                  <th className="px-6 py-3.5">Joined</th>
+                  <th className="px-6 py-3.5">Joined Date</th>
                   {isAdmin && <th className="px-6 py-3.5 text-right">Actions</th>}
                 </tr>
               </thead>
@@ -249,6 +331,8 @@ export const MembersView: React.FC = () => {
                 {members.map((m) => {
                   const name = m.user.first_name ? `${m.user.first_name} ${m.user.last_name || ''}`.trim() : 'Member';
                   const initial = name.charAt(0).toUpperCase() || m.user.email.charAt(0).toUpperCase();
+                  const memberTargetId = m.user?.id || m.id;
+
                   return (
                     <tr key={m.id} className="hover:bg-[#F6F5F0]/50 transition">
                       <td className="px-6 py-4">
@@ -271,8 +355,8 @@ export const MembersView: React.FC = () => {
                         {isAdmin ? (
                           <select
                             value={m.role}
-                            onChange={(e) => handleRoleChange(m.id, e.target.value as WorkspaceRole)}
-                            className="bg-[#F6F5F0] border border-[#DDD9CC] rounded-lg text-xs font-medium text-[#1B1F27] px-2.5 py-1.5 focus:outline-none focus:border-[#1B1F27]"
+                            onChange={(e) => handleRoleChange(memberTargetId, e.target.value as WorkspaceRole)}
+                            className="bg-[#F6F5F0] border border-[#DDD9CC] rounded-lg text-xs font-medium text-[#1B1F27] px-2.5 py-1.5 focus:outline-none focus:border-[#1B1F27] cursor-pointer hover:border-[#1B1F27]/50 transition"
                           >
                             <option value="ADMIN">ADMIN</option>
                             <option value="MANAGER">MANAGER</option>
@@ -285,7 +369,7 @@ export const MembersView: React.FC = () => {
                         )}
                       </td>
                       <td className="px-6 py-4 text-xs text-[#5B6270]">
-                        {new Date(m.joined_at).toLocaleDateString()}
+                        {formatDate(m.joined_at || m.created_at)}
                       </td>
                       {isAdmin && (
                         <td className="px-6 py-4 text-right">
@@ -357,7 +441,7 @@ export const MembersView: React.FC = () => {
                         {inv.invited_by_name || inv.invited_by_email}
                       </td>
                       <td className="px-6 py-3.5 text-[#5B6270]">
-                        {new Date(inv.expires_at).toLocaleDateString()}
+                        {formatDate(inv.expires_at)}
                       </td>
                       <td className="px-6 py-3.5 text-right space-x-2">
                         <button
@@ -397,34 +481,245 @@ export const MembersView: React.FC = () => {
         </div>
       )}
 
-      {/* Role Matrix Card */}
-      <div className="bg-white p-6 rounded-2xl border border-[#DDD9CC] space-y-4 shadow-xs">
-        <h3 className="text-base font-semibold text-[#1B1F27] flex items-center gap-2">
-          <ShieldCheck className="w-5 h-5 text-[#2E6F5E]" />
-          Role Permission Matrix
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-          <div className="p-4 rounded-xl bg-[#F6F5F0] border border-[#DDD9CC] space-y-2">
-            <div className="font-bold text-[#1B1F27] text-sm">ADMIN</div>
-            <p className="text-[#5B6270] leading-relaxed">
-              Full control. Manage workspace settings, invite/remove members, upload documents, delete resources, and chat.
-            </p>
-          </div>
-          <div className="p-4 rounded-xl bg-[#F6F5F0] border border-[#DDD9CC] space-y-2">
-            <div className="font-bold text-[#1B1F27] text-sm">MANAGER</div>
-            <p className="text-[#5B6270] leading-relaxed">
-              Knowledge administrator. Upload documents, trigger re-indexing, inspect vector chunks, and manage team assets.
-            </p>
-          </div>
-          <div className="p-4 rounded-xl bg-[#F6F5F0] border border-[#DDD9CC] space-y-2">
-            <div className="font-bold text-[#1B1F27] text-sm">EMPLOYEE</div>
-            <p className="text-[#5B6270] leading-relaxed">
-              Workspace collaborator. Query the knowledge base, inspect grounded citations, and interact with the RAG assistant.
-            </p>
+      {/* Dynamic Personalized Role & Capabilities Card */}
+      <div className="bg-white rounded-2xl border border-[#DDD9CC] overflow-hidden shadow-xs">
+        <div className="p-5 sm:p-6 border-b border-[#DDD9CC] bg-gradient-to-r from-white via-[#FDFCFA] to-[#F6F5F0]">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start sm:items-center gap-3.5">
+              <div className="w-11 h-11 rounded-xl bg-[#1B1F27] text-white flex items-center justify-center shadow-xs shrink-0">
+                {effectiveRole === 'ADMIN' ? (
+                  <ShieldCheck className="w-6 h-6 text-[#2E6F5E]" />
+                ) : effectiveRole === 'MANAGER' ? (
+                  <FileText className="w-6 h-6 text-[#A9772F]" />
+                ) : (
+                  <Sparkles className="w-6 h-6 text-[#2E6F5E]" />
+                )}
+              </div>
+              <div>
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <h2 className="text-base font-bold text-[#1B1F27]">
+                    Your Role & Workspace Privileges
+                  </h2>
+                  <span
+                    className={`font-mono text-xs px-2.5 py-0.5 rounded-full font-bold border ${
+                      effectiveRole === 'ADMIN'
+                        ? 'bg-[#2E6F5E]/10 text-[#2E6F5E] border-[#2E6F5E]/30'
+                        : effectiveRole === 'MANAGER'
+                        ? 'bg-[#A9772F]/10 text-[#A9772F] border-[#A9772F]/30'
+                        : 'bg-[#5B6270]/10 text-[#5B6270] border-[#5B6270]/30'
+                    }`}
+                  >
+                    {effectiveRole}
+                  </span>
+                </div>
+                <p className="text-xs text-[#5B6270] mt-1">
+                  {effectiveRole === 'ADMIN' && (
+                    <>You are logged in as a <strong>Workspace Administrator</strong> with full operational and team governance rights.</>
+                  )}
+                  {effectiveRole === 'MANAGER' && (
+                    <>You are logged in as a <strong>Knowledge Manager</strong> with document indexing, chunk inspection, and content administration capabilities.</>
+                  )}
+                  {effectiveRole === 'EMPLOYEE' && (
+                    <>You are logged in as a <strong>Workspace Collaborator</strong> with query, search, and AI assistant privileges.</>
+                  )}
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setShowFullMatrix(!showFullMatrix)}
+              className="text-xs font-medium text-[#5B6270] hover:text-[#1B1F27] flex items-center gap-1.5 self-start sm:self-center px-3 py-1.5 rounded-lg border border-[#DDD9CC] hover:bg-[#F6F5F0] transition cursor-pointer shrink-0"
+            >
+              <span>{showFullMatrix ? 'Hide All Roles Matrix' : 'Compare All Roles'}</span>
+              {showFullMatrix ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </button>
           </div>
         </div>
-      </div>
 
+        {/* Active Privileges Checklist */}
+        <div className="p-5 sm:p-6 bg-white">
+          <div className="text-xs font-semibold uppercase tracking-wider text-[#5B6270] mb-3">
+            Active Capabilities Enabled For You:
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
+            {effectiveRole === 'ADMIN' && (
+              <>
+                <div className="flex items-start gap-2.5 p-3 rounded-xl bg-[#F6F5F0]/60 border border-[#DDD9CC]/70">
+                  <Check className="w-4 h-4 text-[#2E6F5E] mt-0.5 shrink-0" />
+                  <div>
+                    <span className="font-semibold text-[#1B1F27] block">Manage Workspace Settings</span>
+                    <span className="text-[#5B6270]">Configure workspace metadata, delete or update workspace.</span>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2.5 p-3 rounded-xl bg-[#F6F5F0]/60 border border-[#DDD9CC]/70">
+                  <Check className="w-4 h-4 text-[#2E6F5E] mt-0.5 shrink-0" />
+                  <div>
+                    <span className="font-semibold text-[#1B1F27] block">Invite & Manage Members</span>
+                    <span className="text-[#5B6270]">Send email invites, revoke links, change member roles, and remove members.</span>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2.5 p-3 rounded-xl bg-[#F6F5F0]/60 border border-[#DDD9CC]/70">
+                  <Check className="w-4 h-4 text-[#2E6F5E] mt-0.5 shrink-0" />
+                  <div>
+                    <span className="font-semibold text-[#1B1F27] block">Upload & Process Documents</span>
+                    <span className="text-[#5B6270]">Upload PDF, DOCX, TXT files, trigger vector indexing, and delete files.</span>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2.5 p-3 rounded-xl bg-[#F6F5F0]/60 border border-[#DDD9CC]/70">
+                  <Check className="w-4 h-4 text-[#2E6F5E] mt-0.5 shrink-0" />
+                  <div>
+                    <span className="font-semibold text-[#1B1F27] block">Inspect Vector Chunks</span>
+                    <span className="text-[#5B6270]">Audit chunking embeddings, vector boundaries, and processing health.</span>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2.5 p-3 rounded-xl bg-[#F6F5F0]/60 border border-[#DDD9CC]/70">
+                  <Check className="w-4 h-4 text-[#2E6F5E] mt-0.5 shrink-0" />
+                  <div>
+                    <span className="font-semibold text-[#1B1F27] block">Interactive RAG Chat Assistant</span>
+                    <span className="text-[#5B6270]">Execute multi-turn grounded conversations with verified citations.</span>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2.5 p-3 rounded-xl bg-[#F6F5F0]/60 border border-[#DDD9CC]/70">
+                  <Check className="w-4 h-4 text-[#2E6F5E] mt-0.5 shrink-0" />
+                  <div>
+                    <span className="font-semibold text-[#1B1F27] block">Full Security & Tenant Isolation</span>
+                    <span className="text-[#5B6270]">Complete data governance with cryptographic invitation tokens.</span>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {effectiveRole === 'MANAGER' && (
+              <>
+                <div className="flex items-start gap-2.5 p-3 rounded-xl bg-[#F6F5F0]/60 border border-[#DDD9CC]/70">
+                  <Check className="w-4 h-4 text-[#2E6F5E] mt-0.5 shrink-0" />
+                  <div>
+                    <span className="font-semibold text-[#1B1F27] block">Upload Knowledge Documents</span>
+                    <span className="text-[#5B6270]">Ingest PDF, DOCX, Markdown, and TXT sources into the workspace.</span>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2.5 p-3 rounded-xl bg-[#F6F5F0]/60 border border-[#DDD9CC]/70">
+                  <Check className="w-4 h-4 text-[#2E6F5E] mt-0.5 shrink-0" />
+                  <div>
+                    <span className="font-semibold text-[#1B1F27] block">Trigger Vector Re-indexing</span>
+                    <span className="text-[#5B6270]">Reprocess documents and regenerate vector chunk embeddings.</span>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2.5 p-3 rounded-xl bg-[#F6F5F0]/60 border border-[#DDD9CC]/70">
+                  <Check className="w-4 h-4 text-[#2E6F5E] mt-0.5 shrink-0" />
+                  <div>
+                    <span className="font-semibold text-[#1B1F27] block">Inspect Vector Chunks</span>
+                    <span className="text-[#5B6270]">Audit document chunk segmentation, similarity scores, and tokens.</span>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2.5 p-3 rounded-xl bg-[#F6F5F0]/60 border border-[#DDD9CC]/70">
+                  <Check className="w-4 h-4 text-[#2E6F5E] mt-0.5 shrink-0" />
+                  <div>
+                    <span className="font-semibold text-[#1B1F27] block">Knowledge Assistant Chat</span>
+                    <span className="text-[#5B6270]">Query the AI assistant with real-time knowledge base retrieval.</span>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2.5 p-3 rounded-xl bg-[#F6F5F0]/60 border border-[#DDD9CC]/70">
+                  <Check className="w-4 h-4 text-[#2E6F5E] mt-0.5 shrink-0" />
+                  <div>
+                    <span className="font-semibold text-[#1B1F27] block">Grounded Citations</span>
+                    <span className="text-[#5B6270]">Verify source context and document references in assistant answers.</span>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2.5 p-3 rounded-xl bg-amber-50/60 border border-amber-200/70">
+                  <Lock className="w-4 h-4 text-amber-700 mt-0.5 shrink-0" />
+                  <div>
+                    <span className="font-semibold text-amber-900 block">Restricted Administration</span>
+                    <span className="text-amber-700">Workspace settings and member invitations are reserved for Admins.</span>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {effectiveRole === 'EMPLOYEE' && (
+              <>
+                <div className="flex items-start gap-2.5 p-3 rounded-xl bg-[#F6F5F0]/60 border border-[#DDD9CC]/70">
+                  <Check className="w-4 h-4 text-[#2E6F5E] mt-0.5 shrink-0" />
+                  <div>
+                    <span className="font-semibold text-[#1B1F27] block">AI Knowledge Assistant</span>
+                    <span className="text-[#5B6270]">Ask questions and engage in multi-turn AI chat against workspace knowledge.</span>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2.5 p-3 rounded-xl bg-[#F6F5F0]/60 border border-[#DDD9CC]/70">
+                  <Check className="w-4 h-4 text-[#2E6F5E] mt-0.5 shrink-0" />
+                  <div>
+                    <span className="font-semibold text-[#1B1F27] block">Grounded Fact Citations</span>
+                    <span className="text-[#5B6270]">Inspect citations and verified excerpts backing every assistant answer.</span>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2.5 p-3 rounded-xl bg-[#F6F5F0]/60 border border-[#DDD9CC]/70">
+                  <Check className="w-4 h-4 text-[#2E6F5E] mt-0.5 shrink-0" />
+                  <div>
+                    <span className="font-semibold text-[#1B1F27] block">Knowledge Base Access</span>
+                    <span className="text-[#5B6270]">Read and browse workspace knowledge materials in read-only mode.</span>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2.5 p-3 rounded-xl bg-[#F6F5F0]/60 border border-[#DDD9CC]/70">
+                  <Lock className="w-4 h-4 text-[#5B6270] mt-0.5 shrink-0" />
+                  <div>
+                    <span className="font-semibold text-[#1B1F27] block">Document Ingestion</span>
+                    <span className="text-[#5B6270]">Uploading and re-indexing are managed by Managers and Admins.</span>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2.5 p-3 rounded-xl bg-[#F6F5F0]/60 border border-[#DDD9CC]/70">
+                  <Lock className="w-4 h-4 text-[#5B6270] mt-0.5 shrink-0" />
+                  <div>
+                    <span className="font-semibold text-[#1B1F27] block">Team & Access Control</span>
+                    <span className="text-[#5B6270]">User invitations and role assignments are managed by Admins.</span>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Collapsible Full Role Comparison Matrix */}
+        {showFullMatrix && (
+          <div className="p-5 sm:p-6 border-t border-[#DDD9CC] bg-[#F6F5F0]/50 space-y-4 animate-in fade-in duration-200">
+            <h3 className="text-sm font-semibold text-[#1B1F27] flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-[#2E6F5E]" />
+              Workspace Role Comparison Matrix
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+              <div className={`p-4 rounded-xl border space-y-2 ${effectiveRole === 'ADMIN' ? 'bg-white border-[#2E6F5E] shadow-xs' : 'bg-white border-[#DDD9CC]'}`}>
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-[#1B1F27] text-sm">ADMIN</span>
+                  {effectiveRole === 'ADMIN' && <span className="text-[10px] font-bold text-[#2E6F5E] bg-[#2E6F5E]/10 px-2 py-0.5 rounded-full">Your Role</span>}
+                </div>
+                <p className="text-[#5B6270] leading-relaxed">
+                  Full control. Manage workspace settings, invite/remove members, update roles, upload documents, delete resources, and chat.
+                </p>
+              </div>
+
+              <div className={`p-4 rounded-xl border space-y-2 ${effectiveRole === 'MANAGER' ? 'bg-white border-[#A9772F] shadow-xs' : 'bg-white border-[#DDD9CC]'}`}>
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-[#1B1F27] text-sm">MANAGER</span>
+                  {effectiveRole === 'MANAGER' && <span className="text-[10px] font-bold text-[#A9772F] bg-[#A9772F]/10 px-2 py-0.5 rounded-full">Your Role</span>}
+                </div>
+                <p className="text-[#5B6270] leading-relaxed">
+                  Knowledge administrator. Upload documents, trigger re-indexing, inspect vector chunks, and manage workspace knowledge assets.
+                </p>
+              </div>
+
+              <div className={`p-4 rounded-xl border space-y-2 ${effectiveRole === 'EMPLOYEE' ? 'bg-white border-[#5B6270] shadow-xs' : 'bg-white border-[#DDD9CC]'}`}>
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-[#1B1F27] text-sm">EMPLOYEE</span>
+                  {effectiveRole === 'EMPLOYEE' && <span className="text-[10px] font-bold text-[#5B6270] bg-[#5B6270]/10 px-2 py-0.5 rounded-full">Your Role</span>}
+                </div>
+                <p className="text-[#5B6270] leading-relaxed">
+                  Workspace collaborator. Query the knowledge base, inspect grounded citations, read documents, and interact with the RAG assistant.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+      
       {/* Invite Member Modal */}
       <Modal
         isOpen={isInviteOpen}
@@ -571,4 +866,5 @@ export const MembersView: React.FC = () => {
     </div>
   );
 };
+
 

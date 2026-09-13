@@ -225,11 +225,14 @@ class WorkspaceMemberDetailView(generics.RetrieveUpdateDestroyAPIView):
     def get_object(self):
         workspace_id = self.kwargs.get('workspace_id')
         user_id = self.kwargs.get('user_id')
-        membership = get_object_or_404(
-            WorkspaceMembership.objects.select_related('user', 'workspace'),
-            workspace_id=workspace_id,
-            user_id=user_id
-        )
+        from django.db.models import Q
+        membership = WorkspaceMembership.objects.select_related('user', 'workspace').filter(
+            workspace_id=workspace_id
+        ).filter(
+            Q(user_id=user_id) | Q(id=user_id)
+        ).first()
+        if not membership:
+            raise NotFound("Workspace member not found.")
         return membership
 
     def update(self, request, *args, **kwargs):

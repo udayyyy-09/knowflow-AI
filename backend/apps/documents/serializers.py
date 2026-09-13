@@ -53,6 +53,7 @@ class DocumentVersionSerializer(serializers.ModelSerializer):
     """
     uploaded_by = UserProfileSerializer(read_only=True)
     file_url = serializers.SerializerMethodField()
+    chunks_count = serializers.SerializerMethodField()
 
     class Meta:
         model = DocumentVersion
@@ -68,6 +69,7 @@ class DocumentVersionSerializer(serializers.ModelSerializer):
             'is_active',
             'change_summary',
             'file_url',
+            'chunks_count',
             'uploaded_by',
             'created_at',
             'updated_at',
@@ -82,6 +84,9 @@ class DocumentVersionSerializer(serializers.ModelSerializer):
             return obj.file.url
         return None
 
+    def get_chunks_count(self, obj):
+        return obj.chunks.count()
+
 
 class DocumentListSerializer(serializers.ModelSerializer):
     """
@@ -90,6 +95,8 @@ class DocumentListSerializer(serializers.ModelSerializer):
     created_by = UserProfileSerializer(read_only=True)
     active_version = DocumentVersionSerializer(read_only=True)
     total_versions_count = serializers.IntegerField(read_only=True)
+    chunks_count = serializers.SerializerMethodField()
+    chunk_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Document
@@ -102,12 +109,23 @@ class DocumentListSerializer(serializers.ModelSerializer):
             'status',
             'is_active',
             'total_versions_count',
+            'chunks_count',
+            'chunk_count',
             'active_version',
             'created_by',
             'created_at',
             'updated_at',
         ]
         read_only_fields = fields
+
+    def get_chunks_count(self, obj):
+        active_ver = obj.active_version
+        if active_ver:
+            return active_ver.chunks.count()
+        return obj.chunks.count()
+
+    def get_chunk_count(self, obj):
+        return self.get_chunks_count(obj)
 
 
 class DocumentDetailSerializer(serializers.ModelSerializer):
@@ -118,6 +136,8 @@ class DocumentDetailSerializer(serializers.ModelSerializer):
     versions = DocumentVersionSerializer(many=True, read_only=True)
     active_version = DocumentVersionSerializer(read_only=True)
     total_versions_count = serializers.IntegerField(read_only=True)
+    chunks_count = serializers.SerializerMethodField()
+    chunk_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Document
@@ -130,6 +150,8 @@ class DocumentDetailSerializer(serializers.ModelSerializer):
             'status',
             'is_active',
             'total_versions_count',
+            'chunks_count',
+            'chunk_count',
             'active_version',
             'versions',
             'created_by',
@@ -137,6 +159,15 @@ class DocumentDetailSerializer(serializers.ModelSerializer):
             'updated_at',
         ]
         read_only_fields = fields
+
+    def get_chunks_count(self, obj):
+        active_ver = obj.active_version
+        if active_ver:
+            return active_ver.chunks.count()
+        return obj.chunks.count()
+
+    def get_chunk_count(self, obj):
+        return self.get_chunks_count(obj)
 
 
 class DocumentUploadSerializer(serializers.Serializer):

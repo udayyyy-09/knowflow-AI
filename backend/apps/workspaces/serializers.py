@@ -20,11 +20,12 @@ class WorkspaceMembershipSerializer(serializers.ModelSerializer):
     Serializer for displaying a workspace member and their assigned role.
     """
     user = UserProfileSerializer(read_only=True)
+    joined_at = serializers.DateTimeField(source='created_at', read_only=True)
 
     class Meta:
         model = WorkspaceMembership
-        fields = ('id', 'workspace_id', 'user', 'role', 'created_at', 'updated_at')
-        read_only_fields = ('id', 'workspace_id', 'created_at', 'updated_at')
+        fields = ('id', 'workspace_id', 'user', 'role', 'joined_at', 'created_at', 'updated_at')
+        read_only_fields = ('id', 'workspace_id', 'joined_at', 'created_at', 'updated_at')
 
 
 class WorkspaceSerializer(serializers.ModelSerializer):
