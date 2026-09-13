@@ -19,3 +19,7 @@ fastembed>=0.8.0
 langfuse>=4.15.0
 gunicorn>=23.0.0
 whitenoise>=6.7.0
+django-storages[s3]>=1.14.4
+boto3>=1.35.0
+
+
