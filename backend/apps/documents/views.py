@@ -336,15 +336,15 @@ class DocumentDownloadView(APIView):
             response['Content-Disposition'] = f'{disposition}; filename="{active_version.original_filename}"'
             response['Content-Length'] = active_version.file_size_bytes
             return response
-        except (FileNotFoundError, OSError, ValueError):
-            # If in inline preview mode and the ephemeral container lost the raw file,
-            # reconstruct text from indexed chunks stored in PostgreSQL database
+        except Exception:
+            # If the raw file is missing from S3/local storage, reconstruct text from indexed chunks stored in PostgreSQL
             chunks = DocumentChunk.objects.filter(version=active_version).order_by('chunk_index')
             if chunks.exists():
                 reconstructed_text = "\n\n".join(c.content for c in chunks)
                 import io
                 buffer = io.BytesIO(reconstructed_text.encode('utf-8'))
-                mime = 'text/plain; charset=utf-8' if active_version.file_type in ('TXT', 'CSV') else 'text/markdown; charset=utf-8'
+                doc_file_type = getattr(document, 'file_type', 'OTHER')
+                mime = 'text/plain; charset=utf-8' if doc_file_type in ('TXT', 'CSV') else 'text/markdown; charset=utf-8'
                 response = FileResponse(
                     buffer,
                     content_type=mime
@@ -358,7 +358,7 @@ class DocumentDownloadView(APIView):
                     "success": False,
                     "error": {
                         "code": "FILE_NOT_FOUND",
-                        "message": f"Source file '{active_version.original_filename}' is not available on this server storage. Please re-upload the document.",
+                        "message": f"Source file '{active_version.original_filename}' is not available on storage. Please re-upload the document.",
                         "details": None
                     }
                 },

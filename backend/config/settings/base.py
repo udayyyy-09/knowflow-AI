@@ -311,19 +311,21 @@ CACHES = {
 # -----------------------------------------------------------------------------
 # Embeddings & Vector Search Configuration
 # -----------------------------------------------------------------------------
-EMBEDDING_PROVIDER = env('EMBEDDING_PROVIDER', default='openai')  # 'openai', 'gemini', 'local', 'mock'
+EMBEDDING_PROVIDER = env('EMBEDDING_PROVIDER', default='gemini')  # 'huggingface', 'gemini', 'local', 'openai', 'mock'
 EMBEDDING_MODEL_NAME = env(
     'EMBEDDING_MODEL_NAME',
-    default='BAAI/bge-small-en-v1.5' if EMBEDDING_PROVIDER in ['local', 'fastembed'] else 'text-embedding-3-small'
+    default='BAAI/bge-small-en-v1.5' if EMBEDDING_PROVIDER in ['local', 'fastembed', 'huggingface'] else 'text-embedding-004'
 )
 EMBEDDING_DIMENSIONS = env.int(
     'EMBEDDING_DIMENSIONS',
-    default=384 if EMBEDDING_PROVIDER in ['local', 'fastembed'] else 1536
+    default=384 if EMBEDDING_PROVIDER in ['local', 'fastembed', 'huggingface'] else 768
 )
 EMBEDDING_BATCH_SIZE = env.int('EMBEDDING_BATCH_SIZE', default=64)
 EMBEDDING_TIMEOUT_SECONDS = env.int('EMBEDDING_TIMEOUT_SECONDS', default=30)
 OPENAI_API_KEY = env('OPENAI_API_KEY', default='')
 GEMINI_API_KEY = env('GEMINI_API_KEY', default='')
+HUGGINGFACE_API_KEY = env('HUGGINGFACE_API_KEY', default=env('HF_TOKEN', default=''))
+GROQ_API_KEY = env('GROQ_API_KEY', default='')
 
 # -----------------------------------------------------------------------------
 # Langfuse Prompt Management & Observability
@@ -335,18 +337,21 @@ LANGFUSE_HOST = env('LANGFUSE_HOST', default=env('LANGFUSE_BASE_URL', default='h
 LANGFUSE_PROMPT_CACHE_TTL_SECONDS = env.int('LANGFUSE_PROMPT_CACHE_TTL_SECONDS', default=600)  # 10 minutes
 
 # -----------------------------------------------------------------------------
-# LLM Generation & RAG Configuration
+# LLM Generation & Multi-Tier Cascading RAG Configuration
 # -----------------------------------------------------------------------------
-LLM_PROVIDER = env('LLM_PROVIDER', default='gemini')  # 'gemini', 'openai', 'mock'
-LLM_MODEL_NAME = env('LLM_MODEL_NAME', default='gemini-3.6-flash')
+LLM_PROVIDER = env('LLM_PROVIDER', default='cascade')  # 'cascade' (HF -> Groq -> Gemini), 'huggingface', 'groq', 'gemini', 'openai', 'mock'
+LLM_MODEL_NAME = env('LLM_MODEL_NAME', default='qwen/qwen3.8-27b')
+HF_MODEL_NAME = env('HF_MODEL_NAME', default='meta-llama/Llama-3.1-8b-instruct')
+GROQ_MODEL_NAME = env('GROQ_MODEL_NAME', default='qwen/qwen3.8-27b')
+GEMINI_MODEL_NAME = env('GEMINI_MODEL_NAME', default='gemini-flash-lite-latest')
 LLM_TEMPERATURE = env.float('LLM_TEMPERATURE', default=0.2)
-LLM_MAX_TOKENS = env.int('LLM_MAX_TOKENS', default=1024)
+LLM_MAX_TOKENS = env.int('LLM_MAX_TOKENS', default=4096)
 LLM_TIMEOUT_SECONDS = env.int('LLM_TIMEOUT_SECONDS', default=45)
 
-RAG_TOP_K = env.int('RAG_TOP_K', default=5)
-RAG_MIN_SIMILARITY_SCORE = env.float('RAG_MIN_SIMILARITY_SCORE', default=0.40)
+RAG_TOP_K = env.int('RAG_TOP_K', default=6)
+RAG_MIN_SIMILARITY_SCORE = env.float('RAG_MIN_SIMILARITY_SCORE', default=0.35)
 RAG_MAX_HISTORY_TURNS = env.int('RAG_MAX_HISTORY_TURNS', default=5)
-RAG_MAX_CONTEXT_TOKENS = env.int('RAG_MAX_CONTEXT_TOKENS', default=3072)
+RAG_MAX_CONTEXT_TOKENS = env.int('RAG_MAX_CONTEXT_TOKENS', default=4096)
 RAG_MAX_MESSAGES_PER_CONVERSATION = env.int('RAG_MAX_MESSAGES_PER_CONVERSATION', default=50)
 
 # Rate Limiting (Requests per minute)

@@ -112,7 +112,7 @@ class TestQueryEmbeddingCache:
     """Tests query embedding caching in EmbeddingService."""
 
     def test_generate_query_embedding_uses_cache(self):
-        mock_provider = MockEmbeddingProvider()
+        mock_provider = MockEmbeddingProvider(dimensions=3)
         mock_provider.embed_text = MagicMock(return_value=[0.1, 0.2, 0.3])
 
         service = EmbeddingService(provider=mock_provider)

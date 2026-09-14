@@ -7,6 +7,7 @@ import type { Document } from '@/types/document';
 import { ConversationSidebar } from '@/components/chat/ConversationSidebar';
 import { ChatWindow } from '@/components/chat/ChatWindow';
 import { CitationDetailModal } from '@/components/chat/CitationDetailModal';
+import { DocumentPreviewModal } from '@/components/documents/DocumentPreviewModal';
 
 import { clientCache } from '@/utils/clientCache';
 
@@ -33,7 +34,15 @@ export const ChatView: React.FC = () => {
   const [isStreaming, setIsStreaming] = useState(false);
   const [isMobileConvSidebarOpen, setIsMobileConvSidebarOpen] = useState(false);
   
-  // Citation Modal state
+  // Direct Document PDF Viewer state for citation clicks
+  const [previewDocState, setPreviewDocState] = useState<{
+    document: Document;
+    targetPage?: number | null;
+    citationNum?: number;
+    highlightSnippet?: string;
+  } | null>(null);
+
+  // Citation fallback Modal state
   const [selectedCitation, setSelectedCitation] = useState<{
     sourceId: number;
     citation: CitationSource | null;
@@ -304,11 +313,61 @@ export const ChatView: React.FC = () => {
     }
   };
 
-  const handleCitationClick = (sourceId: number, citation?: CitationSource) => {
+  const handleDownloadDoc = (doc: Document) => {
+    if (!activeWorkspace?.id || !doc?.id) return;
+    const downloadUrl = documentsApi.getDownloadUrl(activeWorkspace.id, doc.id, false);
+    const link = window.document.createElement('a');
+    link.href = downloadUrl;
+    link.download = doc.active_version?.original_filename || `${doc.title}.${(doc.file_type || 'pdf').toLowerCase()}`;
+    window.document.body.appendChild(link);
+    link.click();
+    window.document.body.removeChild(link);
+  };
+
+  const openDocumentViewerFromCitation = async (citation: CitationSource, sourceId?: number) => {
+    if (!activeWorkspace || !activeWorkspace.id) return;
+
+    if (citation?.document_id) {
+      // 1. Check local documents state first
+      let targetDoc = documents.find((d) => d.id === citation.document_id);
+
+      // 2. Fetch from API if not yet in local state
+      if (!targetDoc) {
+        try {
+          targetDoc = await documentsApi.get(activeWorkspace.id, citation.document_id);
+        } catch (err) {
+          console.error('Failed to fetch document for preview:', err);
+        }
+      }
+
+      if (targetDoc) {
+        setPreviewDocState({
+          document: targetDoc,
+          targetPage: citation.page_number,
+          citationNum: sourceId || citation.source_id || citation.citation_index || 1,
+          highlightSnippet: citation.content || citation.snippet,
+        });
+        setSelectedCitation(null);
+        return;
+      }
+    }
+
+    // Fallback to drawer if document object cannot be resolved
     setSelectedCitation({
-      sourceId,
-      citation: citation || null,
+      sourceId: sourceId || citation.source_id || citation.citation_index || 1,
+      citation,
     });
+  };
+
+  const handleCitationClick = async (sourceId: number, citation?: CitationSource) => {
+    if (citation) {
+      await openDocumentViewerFromCitation(citation, sourceId);
+    } else {
+      setSelectedCitation({
+        sourceId,
+        citation: null,
+      });
+    }
   };
 
   return (
@@ -338,13 +397,25 @@ export const ChatView: React.FC = () => {
         onNewChat={handleNewConversation}
       />
 
-      {/* Citation Slide-over / Modal */}
+      {/* Primary In-App PDF / Document Viewer with Deep Link Page Jumping */}
+      <DocumentPreviewModal
+        isOpen={!!previewDocState}
+        onClose={() => setPreviewDocState(null)}
+        document={previewDocState?.document || null}
+        targetPage={previewDocState?.targetPage}
+        citationNum={previewDocState?.citationNum}
+        highlightSnippet={previewDocState?.highlightSnippet}
+        onDownloadClick={handleDownloadDoc}
+      />
+
+      {/* Citation Fallback Slide-over / Modal */}
       <CitationDetailModal
         isOpen={!!selectedCitation}
         onClose={() => setSelectedCitation(null)}
         citation={selectedCitation?.citation || null}
         sourceId={selectedCitation?.sourceId || null}
         workspaceName={activeWorkspace?.name || 'Active Workspace'}
+        onOpenViewer={(cit) => openDocumentViewerFromCitation(cit, selectedCitation?.sourceId || undefined)}
       />
     </div>
   );

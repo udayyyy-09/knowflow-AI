@@ -26,15 +26,16 @@ class CacheKeys:
         return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
     @classmethod
-    def query_embedding(cls, provider: str, model_name: str, query_text: str) -> str:
+    def query_embedding(cls, provider: str, model_name: str, query_text: str, dimensions: Optional[int] = None) -> str:
         """
         Cache key for deterministic query embedding vectors.
-        Example: kf:emb:openai:text-embedding-3-small:a1b2c3d4...
+        Example: kf:emb:openai:text-embedding-3-small:d768:a1b2c3d4...
         """
         q_hash = cls._hash_text(query_text)
         clean_provider = (provider or "unknown").strip().lower()
         clean_model = (model_name or "unknown").strip().lower().replace("/", "_")
-        return f"{cls.PREFIX_EMBEDDING}:{clean_provider}:{clean_model}:{q_hash}"
+        dim_str = f":d{dimensions}" if dimensions else ""
+        return f"{cls.PREFIX_EMBEDDING}:{clean_provider}:{clean_model}{dim_str}:{q_hash}"
 
     @classmethod
     def rag_answer(

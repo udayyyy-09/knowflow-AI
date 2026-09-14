@@ -118,14 +118,23 @@ class CacheService:
     # -------------------------------------------------------------------------
 
     @classmethod
-    def get_query_embedding(cls, provider: str, model_name: str, query_text: str) -> Optional[List[float]]:
+    def get_query_embedding(
+        cls,
+        provider: str,
+        model_name: str,
+        query_text: str,
+        dimensions: Optional[int] = None,
+    ) -> Optional[List[float]]:
         """
         Retrieves a cached query embedding vector from Redis.
         """
-        key = CacheKeys.query_embedding(provider, model_name, query_text)
+        key = CacheKeys.query_embedding(provider, model_name, query_text, dimensions)
         try:
             cached_vec = cache.get(key)
             if cached_vec is not None:
+                if dimensions is not None and len(cached_vec) != dimensions:
+                    logger.warning("Cache HIT dimension mismatch (expected %d, got %d) for %s. Discarding cached vector.", dimensions, len(cached_vec), key)
+                    return None
                 logger.debug("Cache HIT for query embedding: %s", key)
                 return cached_vec
         except Exception as e:
@@ -139,12 +148,14 @@ class CacheService:
         model_name: str,
         query_text: str,
         vector: List[float],
+        dimensions: Optional[int] = None,
         timeout: Optional[int] = None,
     ) -> None:
         """
         Caches a normalized query embedding vector in Redis.
         """
-        key = CacheKeys.query_embedding(provider, model_name, query_text)
+        dim = dimensions or (len(vector) if vector else None)
+        key = CacheKeys.query_embedding(provider, model_name, query_text, dim)
         ttl = timeout or cls.DEFAULT_EMBEDDING_TTL
         try:
             cache.set(key, vector, timeout=ttl)

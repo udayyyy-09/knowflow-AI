@@ -101,14 +101,16 @@ class EmbeddingService:
         clean_query = query_text.strip()
         provider_name = getattr(settings, "EMBEDDING_PROVIDER", "openai")
         model_name = self.provider.get_model_name()
+        expected_dims = getattr(self.provider, "dimensions", getattr(settings, "EMBEDDING_DIMENSIONS", 768))
 
-        # 1. Check Redis cache
+        # 1. Check Redis cache with dimensionality verification
         cached_vector = CacheService.get_query_embedding(
             provider=provider_name,
             model_name=model_name,
             query_text=clean_query,
+            dimensions=expected_dims,
         )
-        if cached_vector is not None:
+        if cached_vector is not None and len(cached_vector) == expected_dims:
             return cached_vector
 
         # 2. Generate from provider
@@ -120,6 +122,7 @@ class EmbeddingService:
             model_name=model_name,
             query_text=clean_query,
             vector=vector,
+            dimensions=expected_dims,
         )
         return vector
 

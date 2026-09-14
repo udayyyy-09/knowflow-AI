@@ -21,6 +21,7 @@ from apps.documents.pipeline.embeddings.mock_provider import MockEmbeddingProvid
 from apps.documents.pipeline.embeddings.openai_provider import OpenAIEmbeddingProvider
 from apps.documents.pipeline.embeddings.gemini_provider import GeminiEmbeddingProvider
 from apps.documents.pipeline.embeddings.local_provider import LocalFastEmbedProvider
+from apps.documents.pipeline.embeddings.huggingface_provider import HuggingFaceEmbeddingProvider
 from apps.documents.pipeline.embeddings.factory import EmbeddingProviderFactory
 from apps.documents.services.embedding_service import EmbeddingService
 from apps.documents.services.vector_search import VectorSearchService
@@ -161,8 +162,25 @@ class TestEmbeddingProviders:
         fastembed_p = EmbeddingProviderFactory.get_provider(provider_name="fastembed")
         assert isinstance(fastembed_p, LocalFastEmbedProvider)
 
+        hf_p = EmbeddingProviderFactory.get_provider(provider_name="huggingface")
+        assert isinstance(hf_p, HuggingFaceEmbeddingProvider)
+
         with pytest.raises(ValueError, match="Unsupported embedding provider"):
             EmbeddingProviderFactory.get_provider(provider_name="unknown_provider")
+
+    def test_huggingface_embedding_provider_mocked(self):
+        provider = HuggingFaceEmbeddingProvider(api_key="hf_test_token", model_name="BAAI/bge-small-en-v1.5", dimensions=384)
+        assert provider.get_dimensions() == 384
+        assert provider.get_model_name() == "BAAI/bge-small-en-v1.5"
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = [[0.1] * 384]
+
+        with patch("requests.post", return_value=mock_resp):
+            vec = provider.embed_text("Test query text")
+            assert len(vec) == 384
+            assert vec[0] == 0.1
 
 
 @pytest.mark.django_db

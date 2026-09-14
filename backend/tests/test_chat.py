@@ -343,3 +343,75 @@ class TestChatAPIs:
         url = reverse("chat:workspace-conversations", kwargs={"workspace_id": workspace.id})
         res = outsider_client.get(url)
         assert res.status_code == 403
+
+
+@pytest.mark.django_db
+class TestMultiTierLLMProviders:
+    """Unit tests for multi-tier cascading LLM providers and failover."""
+
+    def test_huggingface_provider_mocked_success(self):
+        from apps.chat.pipeline.llm.huggingface_provider import HuggingFaceLLMProvider
+        provider = HuggingFaceLLMProvider(api_key="hf_test_token", model_name="meta-llama/Llama-3.1-8b-instruct")
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {
+            "choices": [{"message": {"content": "Hugging Face answer [1]"}}],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 15, "total_tokens": 25},
+        }
+
+        with patch("requests.post", return_value=mock_resp):
+            res = provider.generate("System prompt", "User query")
+            assert res.content == "Hugging Face answer [1]"
+            assert res.model_name == "meta-llama/Llama-3.1-8b-instruct"
+
+    def test_groq_provider_mocked_success(self):
+        from apps.chat.pipeline.llm.groq_provider import GroqLLMProvider
+        provider = GroqLLMProvider(api_key="gsk_test_key", model_name="llama-3.1-8b-instant")
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {
+            "choices": [{"message": {"content": "Groq fast answer [1]"}}],
+            "usage": {"prompt_tokens": 8, "completion_tokens": 12, "total_tokens": 20},
+        }
+
+        with patch("requests.post", return_value=mock_resp):
+            res = provider.generate("System prompt", "User query")
+            assert res.content == "Groq fast answer [1]"
+            assert res.model_name == "llama-3.1-8b-instant"
+
+    def test_cascading_provider_failover(self):
+        from apps.chat.pipeline.llm.cascading_provider import CascadingLLMProvider
+        from apps.chat.pipeline.llm.base import LLMResponse
+
+        provider = CascadingLLMProvider()
+
+        # Mock HF failing (503), Groq succeeding (200)
+        with patch.object(provider.hf_provider, "generate", side_effect=RuntimeError("HF 503 Overloaded")):
+            with patch.object(
+                provider.groq_provider,
+                "generate",
+                return_value=LLMResponse(content="Groq fallback answer", model_name="llama-3.1-8b-instant"),
+            ):
+                res = provider.generate("System prompt", "User query")
+                assert res.content == "Groq fallback answer"
+                assert "Groq Cloud" in provider.get_model_name()
+
+    def test_cascading_provider_stream_failover(self):
+        from apps.chat.pipeline.llm.cascading_provider import CascadingLLMProvider
+
+        provider = CascadingLLMProvider()
+
+        def fail_stream(*args, **kwargs):
+            raise RuntimeError("Tier 1 connection timeout")
+
+        def succeed_stream(*args, **kwargs):
+            yield "Token 1 "
+            yield "Token 2"
+
+        with patch.object(provider.hf_provider, "generate_stream", side_effect=fail_stream):
+            with patch.object(provider.groq_provider, "generate_stream", side_effect=succeed_stream):
+                tokens = list(provider.generate_stream("System", "User"))
+                assert "".join(tokens) == "Token 1 Token 2"
+

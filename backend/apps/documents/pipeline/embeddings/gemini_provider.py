@@ -23,18 +23,18 @@ class GeminiEmbeddingProvider(BaseEmbeddingProvider):
         self,
         api_key: str = None,
         model_name: str = "gemini-embedding-001",
-        dimensions: int = 1536,
+        dimensions: int = 768,
         timeout_seconds: int = 30,
     ):
         self.api_key = api_key if api_key is not None else getattr(settings, "GEMINI_API_KEY", "")
-        # Normalize model name: remove 'models/' and map deprecated names
+        # Normalize model name: Google v1beta uses 'gemini-embedding-001'
         raw_name = model_name or getattr(settings, "EMBEDDING_MODEL_NAME", "gemini-embedding-001")
         cleaned = raw_name.replace("models/", "").strip()
-        if cleaned in ["text-embedding-004", "embedding-001", "text-embedding-3-small", ""]:
+        if not cleaned or cleaned in ["text-embedding-004", "embedding-001", "text-embedding-3-small", "default"]:
             self.model_name = "gemini-embedding-001"
         else:
             self.model_name = cleaned
-        self.dimensions = dimensions or getattr(settings, "EMBEDDING_DIMENSIONS", 1536)
+        self.dimensions = dimensions or getattr(settings, "EMBEDDING_DIMENSIONS", 768)
         self.timeout_seconds = timeout_seconds or getattr(settings, "EMBEDDING_TIMEOUT_SECONDS", 30)
 
         if not self.api_key:

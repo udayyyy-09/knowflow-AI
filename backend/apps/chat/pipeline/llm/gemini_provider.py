@@ -21,7 +21,7 @@ class GeminiLLMProvider(BaseLLMProvider):
     """
 
     API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
-    FALLBACK_MODELS = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-flash-latest"]
+    FALLBACK_MODELS = ["gemini-flash-lite-latest", "gemini-flash-latest", "gemini-pro-latest"]
 
     def __init__(
         self,
@@ -32,12 +32,14 @@ class GeminiLLMProvider(BaseLLMProvider):
         timeout_seconds: Optional[int] = None,
     ):
         self.api_key = api_key if api_key is not None else getattr(settings, "GEMINI_API_KEY", "")
-        raw_name = model_name or getattr(settings, "LLM_MODEL_NAME", "gemini-3.6-flash")
-        # Normalize model name
+        raw_name = model_name or getattr(settings, "GEMINI_MODEL_NAME", "gemini-flash-lite-latest")
         cleaned_name = raw_name.replace("models/", "").strip()
-        self.model_name = cleaned_name or "gemini-3.6-flash"
+        if not cleaned_name or not cleaned_name.startswith("gemini-"):
+            self.model_name = "gemini-flash-lite-latest"
+        else:
+            self.model_name = cleaned_name
         self.temperature = temperature if temperature is not None else getattr(settings, "LLM_TEMPERATURE", 0.2)
-        self.max_tokens = max_tokens or getattr(settings, "LLM_MAX_TOKENS", 1024)
+        self.max_tokens = max_tokens or getattr(settings, "LLM_MAX_TOKENS", 4096)
         self.timeout_seconds = timeout_seconds or getattr(settings, "LLM_TIMEOUT_SECONDS", 45)
 
         if not self.api_key:
@@ -59,6 +61,8 @@ class GeminiLLMProvider(BaseLLMProvider):
     ) -> dict:
         temp = temperature if temperature is not None else self.temperature
         max_tok = max_tokens or self.max_tokens
+        if max_tok < 4096:
+            max_tok = 4096
         return {
             "system_instruction": {
                 "parts": [{"text": system_prompt}]
@@ -221,7 +225,25 @@ class GeminiLLMProvider(BaseLLMProvider):
                 continue
 
         if last_error:
-            raise last_error
+            logger.info("Falling back to synchronous generateContent call for resilient response...")
+            try:
+                gen_resp = self.generate(
+                    system_prompt=system_prompt,
+                    user_prompt=user_prompt,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    timeout_seconds=timeout_seconds,
+                )
+                if gen_resp.content:
+                    # Yield words/tokens smoothly
+                    words = gen_resp.content.split(' ')
+                    for i, w in enumerate(words):
+                        yield w + (' ' if i < len(words) - 1 else '')
+                    return
+            except Exception as e:
+                logger.error("Synchronous fallback also failed: %s", str(e))
+                raise last_error
+
         raise RuntimeError("All Gemini stream model endpoints failed.")
 
     def get_model_name(self) -> str:

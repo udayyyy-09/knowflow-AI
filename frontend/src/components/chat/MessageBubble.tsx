@@ -178,8 +178,6 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               <div className="flex flex-wrap gap-2">
                 {citationsList.map((c: CitationSource, idx: number) => {
                   const sourceNum = c.source_id ?? c.citation_index ?? idx + 1;
-                  const rawScore = c.similarity ?? c.similarity_score ?? 0;
-                  const percent = Math.round(rawScore > 1 ? rawScore : rawScore * 100);
                   return (
                     <button
                       key={sourceNum}
@@ -189,14 +187,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                       <span className="font-mono font-bold text-[#2E6F5E] bg-[#2E6F5E]/10 px-1.5 py-0.5 rounded text-[11px]">
                         [{sourceNum}]
                       </span>
-                      <span className="truncate max-w-[200px] font-medium text-[#1B1F27]">
+                      <span className="truncate max-w-[220px] font-medium text-[#1B1F27]">
                         {c.document_title}
                       </span>
-                      {percent > 0 && (
-                        <span className="text-[10px] text-[#2E6F5E] font-mono font-semibold bg-white border border-[#DDD9CC] px-1.5 py-0.5 rounded">
-                          {percent >= 70 ? 'High Match' : `${percent}%`}
-                        </span>
-                      )}
                     </button>
                   );
                 })}

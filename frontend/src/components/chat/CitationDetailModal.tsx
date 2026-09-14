@@ -22,6 +22,7 @@ interface CitationDetailModalProps {
   sourceId: number | null;
   workspaceName?: string;
   onOpenDocument?: (docId?: string) => void;
+  onOpenViewer?: (citation: CitationSource) => void;
 }
 
 export const CitationDetailModal: React.FC<CitationDetailModalProps> = ({
@@ -31,6 +32,7 @@ export const CitationDetailModal: React.FC<CitationDetailModalProps> = ({
   sourceId,
   workspaceName = 'Active Workspace',
   onOpenDocument,
+  onOpenViewer,
 }) => {
   const [copied, setCopied] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -218,15 +220,32 @@ export const CitationDetailModal: React.FC<CitationDetailModalProps> = ({
 
         {/* Footer Actions: Jump to Documents & Close */}
         <div className="p-4 md:p-5 border-t border-[#DDD9CC] bg-[#F6F5F0] flex items-center justify-between gap-3">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleJumpToKnowledge}
-            className="text-xs border-[#DDD9CC] text-[#1B1F27] hover:bg-white flex items-center gap-1.5"
-          >
-            <ExternalLink className="w-3.5 h-3.5 text-[#2E6F5E]" />
-            Open in Knowledge Hub
-          </Button>
+          <div className="flex items-center gap-2">
+            {onOpenViewer ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  onClose();
+                  onOpenViewer(citation);
+                }}
+                className="text-xs border-[#DDD9CC] text-[#1B1F27] hover:bg-white flex items-center gap-1.5"
+              >
+                <BookOpen className="w-3.5 h-3.5 text-[#2E6F5E]" />
+                {pageNumber ? `View Original PDF (Page ${pageNumber})` : 'View Original Document'}
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleJumpToKnowledge}
+                className="text-xs border-[#DDD9CC] text-[#1B1F27] hover:bg-white flex items-center gap-1.5"
+              >
+                <ExternalLink className="w-3.5 h-3.5 text-[#2E6F5E]" />
+                Open in Knowledge Hub
+              </Button>
+            )}
+          </div>
 
           <Button variant="primary" size="sm" onClick={onClose} className="px-5">
             Done
