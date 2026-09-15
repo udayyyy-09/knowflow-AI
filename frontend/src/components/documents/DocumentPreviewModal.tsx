@@ -64,6 +64,55 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
     setLoading(true);
     setError(null);
 
+    // If it is a sample document preview
+    const isSample = (document as any).isSample || !!(document as any).sampleUrl;
+    const sampleUrl = (document as any).sampleUrl;
+    const inlineContent = (document as any).inlineContent;
+
+    if (isSample && sampleUrl) {
+      fetch(sampleUrl)
+        .then(async (res) => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const blob = await res.blob();
+          if (isPdf) {
+            const pdfBlob = new Blob([blob], { type: 'application/pdf' });
+            const url = URL.createObjectURL(pdfBlob);
+            setBlobUrl(url);
+          } else {
+            const text = await blob.text();
+            setTextContent(text);
+          }
+        })
+        .catch((err: any) => {
+          console.warn('Failed to load sample document preview from URL:', err);
+          if (inlineContent) {
+            setTextContent(inlineContent);
+          } else {
+            setError('Failed to load sample document content for preview.');
+          }
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+
+      return () => {
+        if (blobUrl) {
+          URL.revokeObjectURL(blobUrl);
+        }
+      };
+    }
+
+    if (isSample && inlineContent) {
+      setTextContent(inlineContent);
+      setLoading(false);
+      return;
+    }
+
+    if (!activeWorkspace) {
+      setLoading(false);
+      return;
+    }
+
     // Fetch document stream using authenticated Bearer token
     documentsApi
       .downloadFileBlob(activeWorkspace.id, document.id, true)
@@ -94,7 +143,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
         URL.revokeObjectURL(blobUrl);
       }
     };
-  }, [isOpen, document?.id, activeWorkspace?.id]);
+  }, [isOpen, document?.id, (document as any)?.sampleUrl, activeWorkspace?.id]);
 
   // Handle Escape key to close preview modal
   useEffect(() => {
@@ -121,6 +170,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
 
   if (!isOpen || !document) return null;
 
+  const isSampleDoc = (document as any)?.isSample;
   const isAdmin = userRole === 'ADMIN';
   const pageNum = targetPage && targetPage > 0 ? targetPage : undefined;
 
@@ -139,6 +189,19 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
   };
 
   const handleDownload = () => {
+    if (isSampleDoc) {
+      const sampleUrl = (document as any)?.sampleUrl;
+      const filename = document.active_version?.original_filename || `${document.title}.${isPdf ? 'pdf' : 'txt'}`;
+      if (sampleUrl) {
+        const a = window.document.createElement('a');
+        a.href = sampleUrl;
+        a.download = filename;
+        window.document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }
+      return;
+    }
     if (onDownloadClick) {
       onDownloadClick(document);
     }
@@ -202,7 +265,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                 )}
               </div>
               <p className="text-xs text-[#5B6270] truncate mt-0.5">
-                Workspace: <span className="font-medium text-[#1B1F27]">{activeWorkspace?.name}</span>
+                Workspace: <span className="font-medium text-[#1B1F27]">{isSampleDoc ? 'Sample Document Playground' : (activeWorkspace?.name || 'Current Workspace')}</span>
                 {document.active_version?.original_filename && (
                   <> • Source: <span className="font-mono text-[11px]">{document.active_version.original_filename}</span></>
                 )}
@@ -217,7 +280,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
               size="sm"
               onClick={handleDownload}
               className="text-xs flex items-center gap-1.5 border-[#DDD9CC] hover:bg-[#F6F5F0]"
-              title={isAdmin ? "Download source document" : "Only admins can download source files"}
+              title={isSampleDoc ? "Download sample file" : (isAdmin ? "Download source document" : "Only admins can download source files")}
             >
               <Download className="w-3.5 h-3.5 text-[#2E6F5E]" />
               <span className="hidden sm:inline">Download</span>

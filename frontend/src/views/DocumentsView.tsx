@@ -19,6 +19,8 @@ import {
 } from 'lucide-react';
 import { clientCache } from '@/utils/clientCache';
 
+import { SampleDocumentIngestionCard } from '@/components/documents/SampleDocumentIngestionCard';
+
 export const DocumentsView: React.FC = () => {
   const { activeWorkspace, userRole } = useWorkspace();
   const canManageDocs = userRole === 'ADMIN' || userRole === 'MANAGER';
@@ -272,6 +274,14 @@ export const DocumentsView: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Interactive 1-Click Sample Document Ingestion Card */}
+      <SampleDocumentIngestionCard
+        onDocumentUploaded={() => fetchDocuments(false)}
+        onShowToast={(t) => setToast(t)}
+        onPreviewSample={(doc) => setPreviewDoc(doc)}
+        existingDocuments={documents}
+      />
 
       {/* Document List with Search & Filtering */}
       <DocumentList

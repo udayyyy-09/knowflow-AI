@@ -10,9 +10,11 @@ import {
   CheckCircle2, 
   AlertCircle, 
   FileCode, 
-  FileSpreadsheet
+  FileSpreadsheet,
+  Sparkles
 } from 'lucide-react';
 import { Spinner } from '@/components/common/Spinner';
+import { SAMPLE_DOCUMENTS, fetchSampleFileObject, type SampleDocumentItem } from '@/utils/sampleDocuments';
 
 interface DocumentUploadModalProps {
   isOpen: boolean;
@@ -83,6 +85,34 @@ export const DocumentUploadModal: React.FC<DocumentUploadModalProps> = ({
 
   const removeFile = (index: number) => {
     setFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const [loadingSampleId, setLoadingSampleId] = useState<string | null>(null);
+
+  const handleLoadSample = async (sample: SampleDocumentItem) => {
+    setLoadingSampleId(sample.id);
+    setGlobalError(null);
+    try {
+      const fileObj = await fetchSampleFileObject(sample);
+      const isAlreadyAdded = files.some((f) => f.file.name === fileObj.name);
+      if (isAlreadyAdded) {
+        setGlobalError(`"${sample.filename}" is already in the queue.`);
+        return;
+      }
+      setFiles((prev) => [
+        ...prev,
+        {
+          file: fileObj,
+          title: sample.title,
+          status: 'idle',
+        },
+      ]);
+    } catch (err) {
+      console.error('Failed to load sample document:', err);
+      setGlobalError('Failed to load sample document.');
+    } finally {
+      setLoadingSampleId(null);
+    }
   };
 
   const updateFileTitle = (index: number, title: string) => {
@@ -195,6 +225,35 @@ export const DocumentUploadModal: React.FC<DocumentUploadModalProps> = ({
           <p className="text-xs text-[#5B6270] max-w-sm mx-auto">
             Supports PDF, DOCX, TXT, Markdown, and CSV files up to 50MB each. Automatic chunking & pgvector embedding starts immediately upon upload.
           </p>
+        </div>
+
+        {/* 1-Click Quick Sample Files Chip Bar */}
+        <div className="bg-[#FAF9F5] border border-[#DDD9CC] rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          <div className="flex items-center gap-1.5 text-xs text-[#5B6270]">
+            <Sparkles className="w-3.5 h-3.5 text-[#2E6F5E] shrink-0" />
+            <span className="font-medium text-[#1B1F27]">No files ready?</span>
+            <span>Click to load a sample:</span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5">
+            {SAMPLE_DOCUMENTS.map((sample) => (
+              <button
+                key={sample.id}
+                type="button"
+                onClick={() => handleLoadSample(sample)}
+                disabled={loadingSampleId === sample.id || isSubmitting}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white hover:bg-[#F6F5F0] border border-[#DDD9CC] hover:border-[#1B1F27]/40 text-[11px] font-semibold text-[#1B1F27] transition shadow-2xs cursor-pointer disabled:opacity-50"
+              >
+                {loadingSampleId === sample.id ? (
+                  <Spinner size="sm" />
+                ) : (
+                  <span className="text-[#2E6F5E] font-bold">+</span>
+                )}
+                <span>{sample.title}</span>
+                <span className="text-[10px] font-mono text-[#5B6270]">({sample.fileType})</span>
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Selected Files List */}
