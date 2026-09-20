@@ -1,6 +1,19 @@
 import axios, { type AxiosRequestConfig } from 'axios';
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+function getApiBaseUrl(): string {
+  const envUrl = import.meta.env.VITE_API_BASE_URL;
+  // When running in the browser on remote domains (e.g., Vercel), route requests via relative '/api/v1'
+  // so requests go through the Vercel reverse-proxy, ensuring first-party cookies without cross-origin blocking.
+  if (typeof window !== 'undefined') {
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    if (!isLocalhost && envUrl && envUrl.startsWith('http')) {
+      return '/api/v1';
+    }
+  }
+  return envUrl || '/api/v1';
+}
+
+export const API_BASE_URL = getApiBaseUrl();
 
 // One-time startup purge: Ensure zero JWT tokens remain in browser storage
 if (typeof window !== 'undefined') {

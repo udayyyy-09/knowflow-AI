@@ -52,7 +52,7 @@ def set_jwt_cookies(response: Response, access_token: str, refresh_token: str = 
         path='/',
     )
 
-    # 2. HttpOnly Refresh Token Cookie (scoped to /api/v1/auth/ for refresh & logout)
+    # 2. HttpOnly Refresh Token Cookie
     if refresh_token:
         response.set_cookie(
             key=cfg['refresh_name'],
@@ -62,7 +62,7 @@ def set_jwt_cookies(response: Response, access_token: str, refresh_token: str = 
             secure=cfg['secure'],
             samesite=cfg['samesite'],
             domain=cfg['domain'],
-            path='/api/v1/auth/',
+            path='/',
         )
 
     # 3. Non-HttpOnly CSRF Cookie (readable by JavaScript to attach in X-CSRF-Token header)
@@ -94,13 +94,6 @@ def clear_jwt_cookies(response: Response) -> Response:
         domain=cfg['domain'],
         samesite=cfg['samesite'],
     )
-    response.delete_cookie(
-        key=cfg['refresh_name'],
-        path='/api/v1/auth/',
-        domain=cfg['domain'],
-        samesite=cfg['samesite'],
-    )
-    # Also delete fallback paths if any
     response.delete_cookie(
         key=cfg['refresh_name'],
         path='/',
