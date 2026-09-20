@@ -250,15 +250,15 @@ SIMPLE_JWT = {
 }
 
 # Cookie Security & Lifecycle Configuration
-JWT_COOKIE_SECURE = env.bool('JWT_COOKIE_SECURE', default=False)
-JWT_COOKIE_SAMESITE = env('JWT_COOKIE_SAMESITE', default='Lax')  # 'Lax' (standard/custom domain), 'None' (cross-origin HTTPS)
+JWT_COOKIE_SECURE = env.bool('JWT_COOKIE_SECURE', default=not DEBUG)
+JWT_COOKIE_SAMESITE = env('JWT_COOKIE_SAMESITE', default='None' if not DEBUG else 'Lax')  # 'Lax' (local dev), 'None' (production HTTPS cross-origin)
 JWT_COOKIE_DOMAIN = env('JWT_COOKIE_DOMAIN', default=None)        # e.g., '.knowflow.ai'
 JWT_ACCESS_COOKIE_NAME = 'knowflow_access_token'
 JWT_REFRESH_COOKIE_NAME = 'knowflow_refresh_token'
 CSRF_DOUBLE_SUBMIT_COOKIE_NAME = 'knowflow_csrf'
 
 # Startup Validation: SameSite='None' must always be paired with Secure=True in modern browsers
-if JWT_COOKIE_SAMESITE.lower() == 'none' and not JWT_COOKIE_SECURE:
+if str(JWT_COOKIE_SAMESITE).lower() == 'none' and not JWT_COOKIE_SECURE:
     raise ValueError("JWT_COOKIE_SECURE must be True when JWT_COOKIE_SAMESITE='None' for browser cookie compliance.")
 
 # -----------------------------------------------------------------------------

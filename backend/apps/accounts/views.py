@@ -20,12 +20,13 @@ from apps.accounts.serializers import (
 
 def get_cookie_settings():
     """Returns standardized cookie configuration parameters."""
+    is_prod = not getattr(settings, 'DEBUG', True)
     return {
         'access_name': getattr(settings, 'JWT_ACCESS_COOKIE_NAME', 'knowflow_access_token'),
         'refresh_name': getattr(settings, 'JWT_REFRESH_COOKIE_NAME', 'knowflow_refresh_token'),
         'csrf_name': getattr(settings, 'CSRF_DOUBLE_SUBMIT_COOKIE_NAME', 'knowflow_csrf'),
-        'secure': getattr(settings, 'JWT_COOKIE_SECURE', False),
-        'samesite': getattr(settings, 'JWT_COOKIE_SAMESITE', 'Lax'),
+        'secure': getattr(settings, 'JWT_COOKIE_SECURE', is_prod),
+        'samesite': getattr(settings, 'JWT_COOKIE_SAMESITE', 'None' if is_prod else 'Lax'),
         'domain': getattr(settings, 'JWT_COOKIE_DOMAIN', None),
         'access_max_age': int(settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds()),
         'refresh_max_age': int(settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds()),
