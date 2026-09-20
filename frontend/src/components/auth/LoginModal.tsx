@@ -19,8 +19,12 @@ export const LoginModal: React.FC = () => {
     setError(null);
   }, [authModalMode, isAuthModalOpen]);
 
+  const isGoogleInitialized = React.useRef(false);
+
   // Load Google Identity Services script and render button
   useEffect(() => {
+    if (!isAuthModalOpen) return;
+
     const initGoogle = () => {
       const google = (window as any).google;
       const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -28,29 +32,32 @@ export const LoginModal: React.FC = () => {
       if (!google?.accounts?.id || !clientId) return;
 
       try {
-        google.accounts.id.initialize({
-          client_id: clientId,
-          callback: async (response: any) => {
-            if (response.credential) {
-              setIsLoading(true);
-              setError(null);
-              try {
-                await loginWithGoogle(response.credential);
-              } catch (err: any) {
-                const msg =
-                  err.response?.data?.error?.message ||
-                  err.response?.data?.message ||
-                  err.message ||
-                  'Google authentication failed.';
-                setError(msg);
-              } finally {
-                setIsLoading(false);
+        if (!isGoogleInitialized.current) {
+          google.accounts.id.initialize({
+            client_id: clientId,
+            callback: async (response: any) => {
+              if (response.credential) {
+                setIsLoading(true);
+                setError(null);
+                try {
+                  await loginWithGoogle(response.credential);
+                } catch (err: any) {
+                  const msg =
+                    err.response?.data?.error?.message ||
+                    err.response?.data?.message ||
+                    err.message ||
+                    'Google authentication failed.';
+                  setError(msg);
+                } finally {
+                  setIsLoading(false);
+                }
               }
-            }
-          },
-          auto_select: false,
-          cancel_on_tap_outside: true,
-        });
+            },
+            auto_select: false,
+            cancel_on_tap_outside: true,
+          });
+          isGoogleInitialized.current = true;
+        }
 
         const btnContainer = document.getElementById('google-signin-btn-container');
         if (btnContainer) {
