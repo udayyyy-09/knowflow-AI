@@ -10,7 +10,7 @@ import { AppSidebar } from '@/components/layout/AppSidebar';
 import { AppHeader } from '@/components/layout/AppHeader';
 import { LoginModal } from '@/components/auth/LoginModal';
 import { CreateWorkspaceModal } from '@/components/layout/CreateWorkspaceModal';
-import { Spinner } from '@/components/common/Spinner';
+import { AppInitialLoader, APP_INITIAL_LOADER_DURATION_MS } from '@/components/common/AppInitialLoader';
 import { PlusCircle, Sparkles, Building2 } from 'lucide-react';
 import { Button } from '@/components/common/Button';
 
@@ -52,12 +52,21 @@ const MainLayout: React.FC = () => {
     return false;
   };
 
+  const [isInitialSplash, setIsInitialSplash] = useState(true);
   const [currentTab, setCurrentTab] = useState<'chat' | 'documents' | 'members'>(getInitialTab);
   const [showLanding, setShowLanding] = useState<boolean>(getInitialShowLanding);
   const [isCreateWorkspaceOpen, setIsCreateWorkspaceOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [inviteToken, setInviteToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsInitialSplash(false);
+    }, APP_INITIAL_LOADER_DURATION_MS);
+
+    return () => clearTimeout(timer);
+  }, []);
 
   const handleSelectTab = (tab: 'chat' | 'documents' | 'members') => {
     setCurrentTab(tab);
@@ -136,7 +145,12 @@ const MainLayout: React.FC = () => {
     };
   }, []);
 
-  // Handle invitation view
+  // 1. Initial Application Splash Screen (Configurable 3-second loader on startup / URL open)
+  if (isInitialSplash) {
+    return <AppInitialLoader />;
+  }
+
+  // 2. Handle invitation view
   if (inviteToken) {
     return (
       <div className="min-h-screen bg-[#F6F5F0] text-[#1B1F27]">
@@ -164,20 +178,20 @@ const MainLayout: React.FC = () => {
     );
   }
 
-  // If auth is still checking
+  // 3. If auth is still checking
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-[#F6F5F0] flex flex-col items-center justify-center gap-4 text-[#1B1F27]">
-        <div className="w-12 h-12 rounded-2xl bg-[rgba(46,111,94,0.12)] border border-[rgba(46,111,94,0.25)] flex items-center justify-center text-[#2E6F5E]">
-          <Sparkles className="w-6 h-6 animate-pulse" />
+      <div className="min-h-screen bg-[#F6F5F0] flex flex-col items-center justify-center gap-5 text-[#1B1F27]">
+        <div className="w-14 h-14 rounded-2xl bg-white border border-[#DDD9CC] shadow-sm flex items-center justify-center text-[#2E6F5E]">
+          <Sparkles className="w-7 h-7 animate-pulse text-[#2E6F5E]" />
         </div>
-        <Spinner size="lg" />
-        <p className="text-sm text-[#5B6270]">Initializing KnowFlow AI session...</p>
+        <div className="loader my-1" />
+        <p className="text-xs font-medium text-[#5B6270]">Initializing KnowFlow AI session...</p>
       </div>
     );
   }
 
-  // If not logged in, or user explicitly requested to view the landing page
+  // 4. If not logged in, or user explicitly requested to view the landing page
   if (!isAuthenticated || showLanding) {
     return (
       <div className="min-h-screen bg-[#F6F5F0] text-[#1B1F27]">
@@ -187,12 +201,12 @@ const MainLayout: React.FC = () => {
     );
   }
 
-  // If logged in, but workspaces are still loading
+  // 5. If logged in, but workspaces are still loading
   if (workspaceLoading) {
     return (
-      <div className="min-h-screen bg-[#F6F5F0] flex flex-col items-center justify-center gap-4 text-[#1B1F27]">
-        <Spinner size="lg" />
-        <p className="text-sm text-[#5B6270]">Loading your knowledge workspaces...</p>
+      <div className="min-h-screen bg-[#F6F5F0] flex flex-col items-center justify-center gap-5 text-[#1B1F27]">
+        <div className="loader my-1" />
+        <p className="text-xs font-medium text-[#5B6270]">Loading your knowledge workspaces...</p>
       </div>
     );
   }

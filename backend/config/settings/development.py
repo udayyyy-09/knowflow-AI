@@ -9,8 +9,9 @@ DEBUG = True
 # Allow all hosts in local development if needed
 ALLOWED_HOSTS = ['*']
 
-# Relax CORS in development if specified
-CORS_ALLOW_ALL_ORIGINS = True
+# Strict CORS origins for credentials/cookies support in local dev
+CORS_ALLOW_ALL_ORIGINS = False
+CORS_ALLOW_CREDENTIALS = True
 
 # Development Logging: output SQL and application logs to console
 LOGGING = {

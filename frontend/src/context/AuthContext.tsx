@@ -29,28 +29,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
 
   useEffect(() => {
+    // 1. One-time legacy cleanup: Remove raw JWT tokens from localStorage
+    localStorage.removeItem('knowflow_access_token');
+    localStorage.removeItem('knowflow_refresh_token');
+
+    // 2. Verify active session with backend via HttpOnly cookies
     const checkAuth = async () => {
-      const token = localStorage.getItem('knowflow_access_token');
-      if (token) {
-        try {
-          const currentUser = await authApi.getMe();
+      try {
+        const currentUser = await authApi.getMe();
+        if (currentUser && currentUser.id) {
           setUser(currentUser);
           localStorage.setItem('knowflow_user', JSON.stringify(currentUser));
-        } catch (e) {
+        } else {
           setUser(null);
-          localStorage.removeItem('knowflow_access_token');
           localStorage.removeItem('knowflow_user');
         }
-      } else {
+      } catch {
         setUser(null);
+        localStorage.removeItem('knowflow_user');
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     };
 
     checkAuth();
 
     const handleLogoutEvent = () => {
       setUser(null);
+      localStorage.removeItem('knowflow_user');
       setIsAuthModalOpen(true);
     };
 
@@ -69,12 +75,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (data: { email: string; password: string }) => {
     const res: any = await authApi.login(data);
-    const tokens = res.tokens || res.data?.tokens;
     const userData = res.user || res.data?.user;
-    if (tokens?.access) {
-      localStorage.setItem('knowflow_access_token', tokens.access);
-      localStorage.setItem('knowflow_refresh_token', tokens.refresh);
-    }
     if (userData) {
       localStorage.setItem('knowflow_user', JSON.stringify(userData));
       setUser(userData);
@@ -84,12 +85,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const register = async (data: { email: string; password: string; first_name?: string; last_name?: string }) => {
     const res: any = await authApi.register(data);
-    const tokens = res.tokens || res.data?.tokens;
     const userData = res.user || res.data?.user;
-    if (tokens?.access) {
-      localStorage.setItem('knowflow_access_token', tokens.access);
-      localStorage.setItem('knowflow_refresh_token', tokens.refresh);
-    }
     if (userData) {
       localStorage.setItem('knowflow_user', JSON.stringify(userData));
       setUser(userData);
@@ -99,12 +95,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loginWithGoogle = async (id_token: string) => {
     const res: any = await authApi.googleAuth(id_token);
-    const tokens = res.tokens || res.data?.tokens;
     const userData = res.user || res.data?.user;
-    if (tokens?.access) {
-      localStorage.setItem('knowflow_access_token', tokens.access);
-      localStorage.setItem('knowflow_refresh_token', tokens.refresh);
-    }
     if (userData) {
       localStorage.setItem('knowflow_user', JSON.stringify(userData));
       setUser(userData);
@@ -113,8 +104,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = async () => {
-    await authApi.logout();
-    setUser(null);
+    try {
+      await authApi.logout();
+    } finally {
+      setUser(null);
+      localStorage.removeItem('knowflow_user');
+      localStorage.removeItem('knowflow_active_workspace_id');
+    }
   };
 
   return (

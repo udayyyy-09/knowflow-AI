@@ -55,11 +55,9 @@ export const documentsApi = {
   },
 
   getDownloadUrl(workspaceId: string, documentId: string, inline = false): string {
-    const token = localStorage.getItem('knowflow_access_token');
     const apiBase = import.meta.env.VITE_API_BASE_URL || '/api/v1';
     const base = apiBase.startsWith('http') ? apiBase : `${window.location.origin}${apiBase}`;
-    const url = `${base}/workspaces/${workspaceId}/documents/${documentId}/download/?inline=${inline ? 'true' : 'false'}`;
-    return token ? `${url}&token=${encodeURIComponent(token)}` : url;
+    return `${base}/workspaces/${workspaceId}/documents/${documentId}/download/?inline=${inline ? 'true' : 'false'}`;
   },
 
   async downloadFileBlob(workspaceId: string, documentId: string, inline = false): Promise<{ blob: Blob; filename: string }> {

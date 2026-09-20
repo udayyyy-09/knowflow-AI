@@ -201,16 +201,19 @@ else:
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 # Django REST Framework Configuration
 # -----------------------------------------------------------------------------
 REST_FRAMEWORK = {
-    # Use JWT authentication for all REST API endpoints
+    # Dual-mode authentication: HttpOnly cookies first, Authorization: Bearer fallback
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'apps.accounts.authentication.CookieJWTAuthentication',
     ),
-    # Require authentication by default for all API endpoints unless explicitly decorated
+    # Require authentication by default for all API endpoints unless explicitly decorated,
+    # with CSRF double-submit token verification on cookie-authenticated mutating requests
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
+        'apps.accounts.csrf.CSRFDoubleSubmitPermission',
     ),
     # Standardized JSON response formatting and browsing capability
     'DEFAULT_RENDERER_CLASSES': (
@@ -225,7 +228,7 @@ REST_FRAMEWORK = {
 }
 
 # -----------------------------------------------------------------------------
-# SimpleJWT Configuration
+# SimpleJWT & Cookie Configuration
 # -----------------------------------------------------------------------------
 ACCESS_TOKEN_MINUTES = env.int('JWT_ACCESS_TOKEN_LIFETIME_MINUTES', default=60)
 REFRESH_TOKEN_DAYS = env.int('JWT_REFRESH_TOKEN_LIFETIME_DAYS', default=14)
@@ -244,6 +247,18 @@ SIMPLE_JWT = {
     'USER_ID_CLAIM': 'user_id',
     'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
 }
+
+# Cookie Security & Lifecycle Configuration
+JWT_COOKIE_SECURE = env.bool('JWT_COOKIE_SECURE', default=False)
+JWT_COOKIE_SAMESITE = env('JWT_COOKIE_SAMESITE', default='Lax')  # 'Lax' (standard/custom domain), 'None' (cross-origin HTTPS)
+JWT_COOKIE_DOMAIN = env('JWT_COOKIE_DOMAIN', default=None)        # e.g., '.knowflow.ai'
+JWT_ACCESS_COOKIE_NAME = 'knowflow_access_token'
+JWT_REFRESH_COOKIE_NAME = 'knowflow_refresh_token'
+CSRF_DOUBLE_SUBMIT_COOKIE_NAME = 'knowflow_csrf'
+
+# Startup Validation: SameSite='None' must always be paired with Secure=True in modern browsers
+if JWT_COOKIE_SAMESITE.lower() == 'none' and not JWT_COOKIE_SECURE:
+    raise ValueError("JWT_COOKIE_SECURE must be True when JWT_COOKIE_SAMESITE='None' for browser cookie compliance.")
 
 # -----------------------------------------------------------------------------
 # Google OAuth Configuration
@@ -276,6 +291,7 @@ CORS_ALLOW_HEADERS = [
     'origin',
     'user-agent',
     'x-csrftoken',
+    'x-csrf-token',
     'x-requested-with',
 ]
 CORS_EXPOSE_HEADERS = [

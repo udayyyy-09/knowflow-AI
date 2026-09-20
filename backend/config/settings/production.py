@@ -24,6 +24,8 @@ SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 SECURE_SSL_REDIRECT = env.bool('SECURE_SSL_REDIRECT', default=True)  # noqa: F405
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
+JWT_COOKIE_SECURE = env.bool('JWT_COOKIE_SECURE', default=True)  # noqa: F405
+JWT_COOKIE_SAMESITE = env('JWT_COOKIE_SAMESITE', default='None')  # noqa: F405 (Default 'None' enables cross-origin Vercel->Render HTTPS cookies)
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = 'DENY'

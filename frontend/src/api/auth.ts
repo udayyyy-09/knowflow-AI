@@ -23,16 +23,11 @@ export const authApi = {
   },
 
   async logout(): Promise<void> {
-    const refresh = localStorage.getItem('knowflow_refresh_token');
     try {
-      if (refresh) {
-        await apiClient.post('/auth/logout/', { refresh });
-      }
+      await apiClient.post('/auth/logout/', {});
     } catch (e) {
-      console.warn('Logout API failed or session already expired:', e);
+      console.warn('Logout API notification failed:', e);
     } finally {
-      localStorage.removeItem('knowflow_access_token');
-      localStorage.removeItem('knowflow_refresh_token');
       localStorage.removeItem('knowflow_user');
       localStorage.removeItem('knowflow_active_workspace_id');
       window.dispatchEvent(new Event('knowflow_auth_logout'));

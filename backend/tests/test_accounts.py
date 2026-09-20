@@ -1,5 +1,6 @@
 """
-Automated Tests for Accounts & Authentication API endpoints.
+Automated Tests for Accounts & Authentication API endpoints,
+including HttpOnly Cookies, CSRF Double-Submit protection, and Bearer backwards-compatibility.
 """
 import pytest
 from unittest.mock import patch
@@ -31,6 +32,14 @@ class TestRegistration:
         assert "refresh" in response.data["data"]["tokens"]
         assert response.data["data"]["user"]["email"] == "newuser@knowflow.ai"
         assert response.data["data"]["user"]["auth_provider"] == AuthProvider.EMAIL
+
+        # Verify HttpOnly and CSRF cookies are set
+        assert 'knowflow_access_token' in response.cookies
+        assert response.cookies['knowflow_access_token']['httponly'] is True
+        assert 'knowflow_refresh_token' in response.cookies
+        assert response.cookies['knowflow_refresh_token']['httponly'] is True
+        assert 'knowflow_csrf' in response.cookies
+        assert bool(response.cookies['knowflow_csrf']['httponly']) is False
 
         # Verify in database
         user = User.objects.get(email="newuser@knowflow.ai")
@@ -113,6 +122,13 @@ class TestLogin:
         assert "tokens" in response.data["data"]
         assert response.data["data"]["user"]["email"] == "loginuser@knowflow.ai"
 
+        # Verify HttpOnly cookies set
+        assert 'knowflow_access_token' in response.cookies
+        assert response.cookies['knowflow_access_token']['httponly'] is True
+        assert 'knowflow_refresh_token' in response.cookies
+        assert response.cookies['knowflow_refresh_token']['httponly'] is True
+        assert 'knowflow_csrf' in response.cookies
+
     def test_login_invalid_password_fails(self, api_client, user_factory):
         user_factory(email="loginuser@knowflow.ai", password="ValidPassword123!")
         url = reverse('auth:login')
@@ -138,13 +154,21 @@ class TestTokenRefreshAndLogout:
         assert response.status_code == status.HTTP_200_OK
         assert "access" in response.data["data"]
 
-    def test_logout_blacklists_token(self, auth_client, user, api_client):
+        # Verify cookies updated
+        assert 'knowflow_access_token' in response.cookies
+        assert 'knowflow_csrf' in response.cookies
+
+    def test_logout_blacklists_token_and_clears_cookies(self, auth_client, user, api_client):
         refresh = RefreshToken.for_user(user)
         logout_url = reverse('auth:logout')
         response = auth_client.post(logout_url, {"refresh": str(refresh)}, format='json')
 
         assert response.status_code == status.HTTP_200_OK
         assert response.data["success"] is True
+
+        # Verify cookies cleared (max_age 0 or empty)
+        assert response.cookies['knowflow_access_token']['max-age'] == 0
+        assert response.cookies['knowflow_refresh_token']['max-age'] == 0
 
         # Attempting to refresh with the blacklisted token should fail
         refresh_url = reverse('auth:token-refresh')
@@ -177,6 +201,10 @@ class TestGoogleOAuth:
         assert response.data["data"]["user"]["email"] == "googleuser@gmail.com"
         assert response.data["data"]["user"]["auth_provider"] == AuthProvider.GOOGLE
         assert "tokens" in response.data["data"]
+
+        # Verify HttpOnly cookies
+        assert 'knowflow_access_token' in response.cookies
+        assert response.cookies['knowflow_access_token']['httponly'] is True
 
         # Verify user in database
         user = User.objects.get(email="googleuser@gmail.com")
@@ -233,7 +261,7 @@ class TestUserProfile:
         assert response.data["data"]["email"] == user.email
         assert response.data["data"]["first_name"] == user.first_name
 
-    def test_update_current_user_profile(self, auth_client, user):
+    def test_update_current_user_profile_with_bearer_header(self, auth_client, user):
         url = reverse('auth:me')
         response = auth_client.patch(url, {"first_name": "UpdatedAlice"}, format='json')
 
@@ -241,3 +269,104 @@ class TestUserProfile:
         assert response.data["data"]["first_name"] == "UpdatedAlice"
         user.refresh_from_db()
         assert user.first_name == "UpdatedAlice"
+
+
+@pytest.mark.django_db
+class TestHttpOnlyCookiesAndCSRF:
+    """
+    Comprehensive test suite for Cookie-based JWT authentication and CSRF double-submit protection.
+    """
+
+    def test_cookie_authentication_for_safe_get_endpoint(self, api_client, user):
+        refresh = RefreshToken.for_user(user)
+        access_token = str(refresh.access_token)
+
+        # Set cookie on client
+        api_client.cookies['knowflow_access_token'] = access_token
+        url = reverse('auth:me')
+        response = api_client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["data"]["email"] == user.email
+
+    def test_cookie_auth_mutating_request_fails_when_csrf_missing(self, api_client, user):
+        refresh = RefreshToken.for_user(user)
+        access_token = str(refresh.access_token)
+
+        api_client.cookies['knowflow_access_token'] = access_token
+        # Mutating PATCH request with cookie auth but NO CSRF token
+        url = reverse('auth:me')
+        response = api_client.patch(url, {"first_name": "HackedName"}, format='json')
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert "CSRF" in str(response.data)
+
+    def test_cookie_auth_mutating_request_fails_when_csrf_mismatched(self, api_client, user):
+        refresh = RefreshToken.for_user(user)
+        access_token = str(refresh.access_token)
+
+        api_client.cookies['knowflow_access_token'] = access_token
+        api_client.cookies['knowflow_csrf'] = 'valid-cookie-csrf-token'
+        # Send different header token
+        url = reverse('auth:me')
+        response = api_client.patch(
+            url,
+            {"first_name": "HackedName"},
+            HTTP_X_CSRF_TOKEN='different-attacker-csrf-token',
+            format='json'
+        )
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_cookie_auth_mutating_request_succeeds_when_csrf_matches(self, api_client, user):
+        refresh = RefreshToken.for_user(user)
+        access_token = str(refresh.access_token)
+        csrf_token = 'matching-cryptographic-csrf-token-12345'
+
+        api_client.cookies['knowflow_access_token'] = access_token
+        api_client.cookies['knowflow_csrf'] = csrf_token
+
+        url = reverse('auth:me')
+        response = api_client.patch(
+            url,
+            {"first_name": "SecureAlice"},
+            HTTP_X_CSRF_TOKEN=csrf_token,
+            format='json'
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["data"]["first_name"] == "SecureAlice"
+        user.refresh_from_db()
+        assert user.first_name == "SecureAlice"
+
+    def test_bearer_header_mutating_request_exempt_from_csrf(self, api_client, user):
+        refresh = RefreshToken.for_user(user)
+        access_token = str(refresh.access_token)
+
+        # Bearer header client without any CSRF cookie or header
+        api_client.credentials(HTTP_AUTHORIZATION=f'Bearer {access_token}')
+        url = reverse('auth:me')
+        response = api_client.patch(url, {"first_name": "BearerAlice"}, format='json')
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["data"]["first_name"] == "BearerAlice"
+
+    def test_cookie_refresh_alone_rotates_tokens(self, api_client, user):
+        refresh = RefreshToken.for_user(user)
+        api_client.cookies['knowflow_refresh_token'] = str(refresh)
+
+        url = reverse('auth:token-refresh')
+        # Empty body — refresh token supplied via HttpOnly cookie
+        response = api_client.post(url, {}, format='json')
+
+        assert response.status_code == status.HTTP_200_OK
+        assert "access" in response.data["data"]
+        assert 'knowflow_access_token' in response.cookies
+        assert 'knowflow_csrf' in response.cookies
+
+    def test_tampered_cookie_returns_401(self, api_client):
+        api_client.cookies['knowflow_access_token'] = 'tampered.garbage.token'
+        url = reverse('auth:me')
+        response = api_client.get(url)
+
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED

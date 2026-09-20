@@ -1,4 +1,4 @@
-import { apiClient, API_BASE_URL } from '@/api/client';
+import { apiClient, API_BASE_URL, getCookie } from '@/api/client';
 import type { Conversation, ConversationDetail, Message, CitationSource } from '@/types/chat';
 
 export interface StreamCallbacks {
@@ -44,15 +44,16 @@ export const chatApi = {
     callbacks: StreamCallbacks,
     signal?: AbortSignal
   ): Promise<void> {
-    const token = localStorage.getItem('knowflow_access_token');
+    const csrfToken = getCookie('knowflow_csrf') || getCookie('__Secure-knowflow_csrf');
     
     try {
       const response = await fetch(`${API_BASE_URL}/conversations/${conversationId}/messages/?stream=true`, {
         method: 'POST',
+        credentials: 'include', // Automatically attaches HttpOnly session cookies
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'text/event-stream',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {})
         },
         body: JSON.stringify({ content, stream: true }),
         signal,
