@@ -77,6 +77,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'apps.accounts.middleware.AuthSourceHeaderMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -298,6 +299,8 @@ CORS_EXPOSE_HEADERS = [
     'content-disposition',
     'content-length',
     'content-type',
+    'x-auth-source',
+    'x-csrf-token',
 ]
 
 # -----------------------------------------------------------------------------
