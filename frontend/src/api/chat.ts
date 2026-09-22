@@ -1,4 +1,4 @@
-import { apiClient, API_BASE_URL, getCookie } from '@/api/client';
+import { apiClient, API_BASE_URL, getCookie, getAccessToken } from '@/api/client';
 import type { Conversation, ConversationDetail, Message, CitationSource } from '@/types/chat';
 
 export interface StreamCallbacks {
@@ -45,14 +45,17 @@ export const chatApi = {
     signal?: AbortSignal
   ): Promise<void> {
     const csrfToken = getCookie('knowflow_csrf') || getCookie('__Secure-knowflow_csrf');
-    
+    const accessToken = getAccessToken();
+
     try {
       const response = await fetch(`${API_BASE_URL}/conversations/${conversationId}/messages/?stream=true`, {
         method: 'POST',
-        credentials: 'include', // Automatically attaches HttpOnly session cookies
+        credentials: 'include', // Also send HttpOnly cookies as fallback
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'text/event-stream',
+          // Attach Bearer token — required since raw fetch() bypasses the axios interceptor
+          ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {}),
           ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {})
         },
         body: JSON.stringify({ content, stream: true }),
