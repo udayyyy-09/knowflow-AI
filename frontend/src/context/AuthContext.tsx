@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { User } from '@/types/auth';
 import { authApi } from '@/api/auth';
+import { storeTokens, clearTokens } from '@/api/client';
 
 interface AuthContextType {
   user: User | null;
@@ -29,7 +30,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
 
   useEffect(() => {
-    // 1. One-time legacy cleanup: Remove any raw JWT tokens from browser storage
+    // 1. One-time legacy cleanup: Remove any raw JWT tokens from old browser storage keys
     sessionStorage.removeItem('knowflow_session_token');
     sessionStorage.removeItem('knowflow_session_refresh');
     localStorage.removeItem('knowflow_session_token');
@@ -37,7 +38,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem('knowflow_access_token');
     localStorage.removeItem('knowflow_refresh_token');
 
-    // 2. Verify active session with backend via HttpOnly cookies
+    // 2. Verify active session with backend via stored tokens / HttpOnly cookies
     const checkAuth = async () => {
       try {
         const currentUser = await authApi.getMe();
@@ -79,6 +80,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (data: { email: string; password: string }) => {
     const res: any = await authApi.login(data);
+    // Store tokens from response body for reliable Bearer auth
+    const tokens = res.tokens || res.data?.tokens;
+    if (tokens?.access) {
+      storeTokens(tokens.access, tokens.refresh);
+    }
     const userData = res.user || res.data?.user;
     if (userData) {
       localStorage.setItem('knowflow_user', JSON.stringify(userData));
@@ -89,6 +95,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const register = async (data: { email: string; password: string; first_name?: string; last_name?: string }) => {
     const res: any = await authApi.register(data);
+    // Store tokens from response body for reliable Bearer auth
+    const tokens = res.tokens || res.data?.tokens;
+    if (tokens?.access) {
+      storeTokens(tokens.access, tokens.refresh);
+    }
     const userData = res.user || res.data?.user;
     if (userData) {
       localStorage.setItem('knowflow_user', JSON.stringify(userData));
@@ -99,6 +110,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loginWithGoogle = async (id_token: string) => {
     const res: any = await authApi.googleAuth(id_token);
+    // Store tokens from response body for reliable Bearer auth
+    // The Google auth response returns { user, tokens: { access, refresh }, is_new_user }
+    const tokens = res.tokens || res.data?.tokens;
+    if (tokens?.access) {
+      storeTokens(tokens.access, tokens.refresh);
+      console.info('[KnowFlow Auth] ✅ Google auth tokens stored for Bearer transport');
+    }
     const userData = res.user || res.data?.user;
     if (userData) {
       localStorage.setItem('knowflow_user', JSON.stringify(userData));
@@ -111,6 +129,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await authApi.logout();
     } finally {
+      clearTokens();
       setUser(null);
       localStorage.removeItem('knowflow_user');
       localStorage.removeItem('knowflow_active_workspace_id');
