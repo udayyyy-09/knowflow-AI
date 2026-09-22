@@ -1,8 +1,8 @@
 """
 Custom Authentication Classes for KnowFlow AI.
 Supports dual-mode authentication:
-1. Authorization: Bearer <token> header (primary — most reliable for proxy deployments)
-2. HttpOnly Cookie Authentication with CSRF double-submit verification (fallback)
+1. HttpOnly Cookie Authentication with CSRF double-submit verification (primary)
+2. Authorization: Bearer <token> header fallback (CLI tools, automated tests, external API consumers)
 """
 from django.conf import settings
 from rest_framework_simplejwt.authentication import JWTAuthentication
@@ -14,37 +14,27 @@ from apps.accounts.csrf import validate_csrf_double_submit
 
 class CookieJWTAuthentication(JWTAuthentication):
     """
-    Extends SimpleJWT's JWTAuthentication to support both Bearer token and HttpOnly cookie auth.
+    Extends SimpleJWT's JWTAuthentication to inspect HttpOnly cookies first,
+    falling back to the standard Authorization: Bearer header.
 
-    Priority:
-      1. Authorization: Bearer <token> header — used when frontend stores tokens in sessionStorage
-         (most reliable for Vercel → Render reverse-proxy setups)
-      2. HttpOnly Cookie — fallback for cookie-based sessions; enforces CSRF double-submit on
-         mutating methods.
+    When authenticating via HttpOnly cookie for unsafe/mutating HTTP methods,
+    automatically verifies the double-submit CSRF token
+    (X-CSRF-Token header must match knowflow_csrf cookie value).
 
-    If the cookie token is present but invalid/expired, the authenticator falls through to the
-    Bearer header rather than raising immediately, allowing seamless dual-mode operation.
+    Cookie flow:
+      Browser → Vercel edge proxy (same-origin) → Render backend
+      Cookies are automatically forwarded because the Vercel edge proxy
+      passes all request headers including Cookie to the upstream.
+
+    Bearer flow (fallback):
+      Used by CLI tools, automated tests, and external API consumers
+      that cannot rely on browser cookie storage.
     """
 
     def authenticate(self, request):
         request.auth_source = None
 
-        # ── 1. Try Authorization: Bearer header first ────────────────────────
-        # This is the primary method when the frontend stores tokens in sessionStorage.
-        header = self.get_header(request)
-        if header is not None:
-            raw_token = self.get_raw_token(header)
-            if raw_token is not None:
-                try:
-                    validated_token = self.get_validated_token(raw_token)
-                    user = self.get_user(validated_token)
-                    request.auth_source = 'header'
-                    return (user, validated_token)
-                except (InvalidToken, AuthenticationFailed):
-                    # Bearer token invalid — fall through to cookie auth
-                    pass
-
-        # ── 2. Fall back to HttpOnly Cookie ──────────────────────────────────
+        # ── 1. Try HttpOnly Cookie (primary) ─────────────────────────────────
         raw_token = (
             request.COOKIES.get(getattr(settings, 'JWT_ACCESS_COOKIE_NAME', 'knowflow_access_token'))
             or request.COOKIES.get('__Secure-knowflow_access')
@@ -65,10 +55,22 @@ class CookieJWTAuthentication(JWTAuthentication):
                         )
 
                 return (user, validated_token)
-            except (InvalidToken, AuthenticationFailed) as exc:
-                # Cookie token invalid/expired — return None so DRF issues a proper 401
-                return None
             except PermissionDenied as exc:
                 raise exc
+            except (InvalidToken, AuthenticationFailed):
+                # Cookie token invalid/expired — fall through to Bearer header
+                pass
 
-        return None
+        # ── 2. Fall back to Authorization: Bearer header ─────────────────────
+        header = self.get_header(request)
+        if header is None:
+            return None
+
+        raw_token = self.get_raw_token(header)
+        if raw_token is None:
+            return None
+
+        validated_token = self.get_validated_token(raw_token)
+        user = self.get_user(validated_token)
+        request.auth_source = 'header'
+        return (user, validated_token)

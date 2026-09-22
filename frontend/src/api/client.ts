@@ -3,7 +3,7 @@ import axios, { type AxiosRequestConfig } from 'axios';
 function getApiBaseUrl(): string {
   const envUrl = import.meta.env.VITE_API_BASE_URL;
   // When running in the browser on remote domains (e.g., Vercel), route requests via relative '/api/v1'
-  // so requests go through the Vercel reverse-proxy, ensuring first-party cookies without cross-origin blocking.
+  // so requests go through the Vercel reverse-proxy, making cookies same-origin from the browser's view.
   if (typeof window !== 'undefined') {
     const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
     if (!isLocalhost && envUrl && envUrl.startsWith('http')) {
@@ -15,36 +15,14 @@ function getApiBaseUrl(): string {
 
 export const API_BASE_URL = getApiBaseUrl();
 
-// ─── Token Storage Helpers ───────────────────────────────────────────────────
-// Tokens are stored in sessionStorage (tab-scoped, cleared on tab close)
-// to survive within the session while avoiding XSS risks of localStorage.
-
-const ACCESS_KEY = 'kf_access';
-const REFRESH_KEY = 'kf_refresh';
-
-export function storeTokens(access: string, refresh?: string) {
-  if (access) sessionStorage.setItem(ACCESS_KEY, access);
-  if (refresh) sessionStorage.setItem(REFRESH_KEY, refresh);
-}
-
-export function getAccessToken(): string | null {
-  return sessionStorage.getItem(ACCESS_KEY);
-}
-
-export function getRefreshToken(): string | null {
-  return sessionStorage.getItem(REFRESH_KEY);
-}
-
-export function clearTokens() {
-  sessionStorage.removeItem(ACCESS_KEY);
-  sessionStorage.removeItem(REFRESH_KEY);
-}
-
 // ─── Legacy Purge ─────────────────────────────────────────────────────────────
-// One-time startup purge: Ensure zero raw JWT tokens remain in old browser storage keys
+// Wipe any tokens that may have been previously stored in JS-accessible storage.
+// Tokens must ONLY live in HttpOnly cookies — never in localStorage/sessionStorage.
 if (typeof window !== 'undefined') {
   sessionStorage.removeItem('knowflow_session_token');
   sessionStorage.removeItem('knowflow_session_refresh');
+  sessionStorage.removeItem('kf_access');
+  sessionStorage.removeItem('kf_refresh');
   localStorage.removeItem('knowflow_session_token');
   localStorage.removeItem('knowflow_session_refresh');
   localStorage.removeItem('knowflow_access_token');
@@ -53,6 +31,7 @@ if (typeof window !== 'undefined') {
 
 /**
  * Utility to extract a cookie value by name from document.cookie.
+ * Only works for non-HttpOnly cookies (e.g., the CSRF double-submit cookie).
  */
 export function getCookie(name: string): string | null {
   if (typeof document === 'undefined') return null;
@@ -65,36 +44,33 @@ export const apiClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  withCredentials: true, // Automatically sends secure HttpOnly cookies across all REST requests
+  // withCredentials sends HttpOnly cookies automatically on every request.
+  // This is the ONLY secure way to transport JWTs in a browser — no JS access to tokens.
+  withCredentials: true,
 });
 
 // ─── Request Interceptor ──────────────────────────────────────────────────────
-// Attaches Bearer token (primary) and CSRF double-submit token on mutating methods.
+// Attaches the CSRF double-submit token on state-mutating methods.
+// The access JWT travels automatically via HttpOnly cookie — no manual attachment needed.
 apiClient.interceptors.request.use(
   (config) => {
     const method = config.method?.toUpperCase() || 'GET';
     const url = config.url || '';
 
-    // 1. Always attach stored access token as Authorization: Bearer (most reliable for proxy setups)
-    const accessToken = getAccessToken();
-    if (accessToken) {
-      config.headers['Authorization'] = `Bearer ${accessToken}`;
-      console.log(
-        `%c[KnowFlow Auth] 🔑 Bearer Token Attached (${method} ${url})`,
-        'color: #2E6F5E; font-weight: 600;'
-      );
-    }
-
-    // 2. Also attach CSRF double-submit token on mutating methods (for cookie-based auth fallback)
     if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
       const csrfToken = getCookie('knowflow_csrf') || getCookie('__Secure-knowflow_csrf');
       if (csrfToken) {
         config.headers['X-CSRF-Token'] = csrfToken;
         console.log(
-          `%c[KnowFlow Auth] 🍪 CSRF Token Attached (${method} ${url})`,
+          `%c[KnowFlow Auth] 🍪 HttpOnly Cookie + CSRF Attached (${method} ${url})`,
           'color: #2E6F5E; font-weight: 600;'
         );
       }
+    } else {
+      console.log(
+        `%c[KnowFlow Auth] 🍪 HttpOnly Cookie Transport (${method} ${url})`,
+        'color: #2E6F5E; font-weight: 500;'
+      );
     }
 
     return config;
@@ -130,14 +106,14 @@ const REFRESH_SKIP_URLS = [
 ];
 
 // ─── Response Interceptor ─────────────────────────────────────────────────────
-// Handles silent token refresh when access token expires (401).
+// Handles silent token refresh when the access token HttpOnly cookie expires (401).
+// The refresh token is transmitted strictly via its own HttpOnly cookie.
 apiClient.interceptors.response.use(
   (response) => {
-    // Log server verification source from backend X-Auth-Source header
     const authSource = response.headers['x-auth-source'];
     if (authSource) {
       console.info(
-        `%c[KnowFlow Auth] ✅ Server Verified: ${authSource} (${response.config.method?.toUpperCase()} ${response.config.url})`,
+        `%c[KnowFlow Auth] 🍪 Server Verified via HttpOnly Cookie (${response.config.method?.toUpperCase()} ${response.config.url})`,
         'color: #2E6F5E; font-weight: bold;'
       );
     }
@@ -146,19 +122,16 @@ apiClient.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean };
 
-    // If 401 and request has not already been retried
     if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
       const requestUrl = originalRequest.url || '';
 
-      // Loop guard: Skip auth probe endpoints to prevent infinite refresh cycles
       const isSkipUrl = REFRESH_SKIP_URLS.some(
         (skipUrl) => requestUrl.includes(skipUrl) || requestUrl.endsWith(skipUrl.replace(/^\//, ''))
       );
 
       if (isSkipUrl) {
         if (requestUrl.includes('/auth/refresh/')) {
-          console.warn('[KnowFlow Auth] Session refresh failed. Logging out.');
-          clearTokens();
+          console.warn('[KnowFlow Auth] Refresh cookie expired or invalid. Logging out.');
           localStorage.removeItem('knowflow_user');
           window.dispatchEvent(new Event('knowflow_auth_logout'));
         }
@@ -166,7 +139,6 @@ apiClient.interceptors.response.use(
       }
 
       if (isRefreshing) {
-        // Queue parallel requests until the first refresh completes
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
         })
@@ -179,33 +151,24 @@ apiClient.interceptors.response.use(
 
       try {
         console.log(
-          '%c[KnowFlow Auth] 🔄 Refreshing session...',
+          '%c[KnowFlow Auth] 🔄 Refreshing session via HttpOnly Refresh Cookie...',
           'color: #6366F1; font-weight: 600;'
         );
 
-        const storedRefresh = getRefreshToken();
-
-        // Send refresh token in request body (primary) and rely on HttpOnly cookie (fallback)
-        const refreshRes = await axios.post(
+        // Refresh token travels via HttpOnly cookie automatically (withCredentials: true).
+        // Empty body is intentional — the backend reads the cookie, not the body.
+        await axios.post(
           `${API_BASE_URL}/auth/refresh/`,
-          storedRefresh ? { refresh: storedRefresh } : {},
+          {},
           { withCredentials: true }
         );
 
-        // Store new tokens if returned in response body
-        const newAccess = refreshRes.data?.data?.access || refreshRes.data?.access;
-        const newRefresh = refreshRes.data?.data?.refresh || refreshRes.data?.refresh;
-        if (newAccess) {
-          storeTokens(newAccess, newRefresh);
-          console.info('%c[KnowFlow Auth] ✅ Session Refreshed', 'color: #2E6F5E; font-weight: bold;');
-        }
-
+        console.info('%c[KnowFlow Auth] ✅ Session Refreshed via HttpOnly Cookies', 'color: #2E6F5E; font-weight: bold;');
         processQueue(null);
         return apiClient(originalRequest);
       } catch (refreshErr) {
         console.error('[KnowFlow Auth] ❌ Session Refresh Failed:', refreshErr);
         processQueue(refreshErr);
-        clearTokens();
         localStorage.removeItem('knowflow_user');
         window.dispatchEvent(new Event('knowflow_auth_logout'));
         return Promise.reject(refreshErr);
