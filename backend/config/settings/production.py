@@ -21,7 +21,10 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # Security Hardening
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-SECURE_SSL_REDIRECT = env.bool('SECURE_SSL_REDIRECT', default=True)  # noqa: F405
+SECURE_SSL_REDIRECT = env.bool('SECURE_SSL_REDIRECT', default=False)  # noqa: F405
+# NOTE: Render terminates SSL at its load balancer. Gunicorn receives plain HTTP
+# internally. SECURE_SSL_REDIRECT must be False here — Django trusts HTTPS via
+# the SECURE_PROXY_SSL_HEADER ('HTTP_X_FORWARDED_PROTO', 'https') set above.
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
 JWT_COOKIE_SECURE = env.bool('JWT_COOKIE_SECURE', default=True)  # noqa: F405
